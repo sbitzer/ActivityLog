@@ -11,7 +11,7 @@ fname = sprintf('activitylog_%s.mat',datestr(jtimes(1),'yyyymmdd'));
 fprintf(1,'Welcome on %s! What are you going to do next?\n(Finish by typing "feierabend")\n',datestr(jtimes(1),'ddd, dd.mm.yyyy'));
 
 cnt = 1;
-while ~strcmpi(jstr{cnt},'feierabend')
+while isempty(strfind(lower(jstr{cnt}),'feierabend'))
     cnt = cnt + 1;
     jstr{cnt} = input('Next activity: ','s');
     
