@@ -2,7 +2,7 @@
 files = dir('activitylog_*.mat');
 ndays = length(files);
 if (now-datenum(files(end).name(13:20),'yyyymmdd'))<1   % if last file is
-    ndays = ndays - 1;                                  % from today,
+%     ndays = ndays - 1;                                  % from today,
 end                                                     % exclude it
 
 nact = 0;
@@ -29,8 +29,8 @@ end
 %% daily working times
 worktimes = nan(ndays,3);
 for d = 1:ndays
-    breakind = cstrfind(lower(actdaily(d).acts),'break');
-    lunchind = cstrfind(lower(actdaily(d).acts),'lunch');
+    breakind = cstrfind(lower(actdaily(d).acts),{'break','chat'});
+    lunchind = cstrfind(lower(actdaily(d).acts),{'lunch','coffee'});
     worktimes(d,:) = sum(actdaily(d).durs);
     worktimes(d,2) = worktimes(d,2) - sum(actdaily(d).durs(lunchind));
     worktimes(d,3) = worktimes(d,3) - sum(actdaily(d).durs([lunchind,breakind]));

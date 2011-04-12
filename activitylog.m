@@ -31,3 +31,29 @@ jstr = jstr(1:cnt);
 jtimes = jtimes(1:cnt);
 
 save(fname,'jstr','jtimes')
+
+
+%% working time for this day
+durs = diff(jtimes(2:end));
+acts = jstr(2:end-1);
+
+if (all(durs>=0))
+    warning('There are negative durations!')
+end
+
+% replace return by corresponding activity
+rind = cstrfind(lower(acts),'return');
+for r = 1:length(rind)
+    acts(rind) = acts(rind-2);
+end
+
+breakind = cstrfind(lower(acts),{'break','chat'});
+lunchind = cstrfind(lower(acts),{'lunch','coffee'});
+worktimes = sum(durs)*ones(1,3);
+worktimes(2) = worktimes(2) - sum(durs(lunchind));
+worktimes(3) = worktimes(3) - sum(durs([lunchind,breakind]));
+
+worktimes = worktimes*24;
+
+fprintf(1,'today''s working hours:\n');
+disp(worktimes)
