@@ -37,7 +37,7 @@ save(fname,'jstr','jtimes')
 durs = diff(jtimes(2:end));
 acts = jstr(2:end-1);
 
-if (all(durs>=0))
+if ~(all(durs>=0))
     warning('There are negative durations!')
 end
 
