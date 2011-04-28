@@ -48,7 +48,7 @@ for r = 1:length(rind)
 end
 
 breakind = cstrfind(lower(acts),{'break','chat'});
-lunchind = cstrfind(lower(acts),{'lunch','coffee'});
+lunchind = cstrfind(lower(acts),{'lunch','coffee','golf'});
 worktimes = sum(durs)*ones(1,3);
 worktimes(2) = worktimes(2) - sum(durs(lunchind));
 worktimes(3) = worktimes(3) - sum(durs([lunchind,breakind]));

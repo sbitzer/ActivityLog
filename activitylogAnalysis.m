@@ -30,7 +30,7 @@ end
 worktimes = nan(ndays,3);
 for d = 1:ndays
     breakind = cstrfind(lower(actdaily(d).acts),{'break','chat'});
-    lunchind = cstrfind(lower(actdaily(d).acts),{'lunch','coffee'});
+    lunchind = cstrfind(lower(actdaily(d).acts),{'lunch','coffee','golf'});
     worktimes(d,:) = sum(actdaily(d).durs);
     worktimes(d,2) = worktimes(d,2) - sum(actdaily(d).durs(lunchind));
     worktimes(d,3) = worktimes(d,3) - sum(actdaily(d).durs([lunchind,breakind]));
