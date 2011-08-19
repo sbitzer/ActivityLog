@@ -82,11 +82,13 @@ for r = 1:length(rind)
     acts(rind) = acts(rind-2);
 end
 
-breakind = cstrfind(lower(acts),{'break','chat'});
-lunchind = cstrfind(lower(acts),{'lunch','coffee','golf'});
+% short break indeces, long break indeces
+lbreakcls = {'lunch','coffee','golf','physio','cycling'};
+sbreakcls = {'break','chat'};
+[sbreaki,lbreaki] = findBreaks(acts,sbreakcls,lbreakcls,durs);
 worktimes = sum(durs)*ones(1,3);
-worktimes(2) = worktimes(2) - sum(durs(lunchind));
-worktimes(3) = worktimes(3) - sum(durs([lunchind,breakind]));
+worktimes(2) = worktimes(2) - sum(durs(lbreaki));
+worktimes(3) = worktimes(3) - sum(durs([lbreaki;sbreaki]));
 
 worktimes = worktimes*24;
 

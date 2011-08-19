@@ -24,7 +24,7 @@ acls.writing  = {'writing','notes',acls.doc{:}}; %#ok<CCAT>
 files = dir('activitylog_*.mat');
 ndays = length(files);
 if (now-datenum(files(end).name(13:20),'yyyymmdd'))<1   % if last file is
-%     ndays = ndays - 1;                                  % from today,
+    ndays = ndays - 1;                                  % from today,
 end                                                     % exclude it
 
 nact = 0;
@@ -78,11 +78,10 @@ end
 %% daily working times
 worktimes = nan(ndays,3);
 for d = 1:ndays
-    breakind = cstrfind(lower(actdaily(d).acts),acls.smbreak);
-    lunchind = cstrfind(lower(actdaily(d).acts),acls.bgbreak);
+    [sbreaki,lbreaki] = findBreaks(actdaily(d).acts,acls.smbreak,acls.bgbreak,actdaily(d).durs);
     worktimes(d,:) = sum(actdaily(d).durs);
-    worktimes(d,2) = worktimes(d,2) - sum(actdaily(d).durs(lunchind));
-    worktimes(d,3) = worktimes(d,3) - sum(actdaily(d).durs([lunchind,breakind]));
+    worktimes(d,2) = worktimes(d,2) - sum(actdaily(d).durs(lbreaki));
+    worktimes(d,3) = worktimes(d,3) - sum(actdaily(d).durs([lbreaki;sbreaki]));
 end
 
 worktimes = worktimes*24;
