@@ -1,7 +1,7 @@
 %% definition of classes of activities
-acls.bgbreak  = {'lunch','coffee','golf','physio'};       % large break
+acls.bgbreak  = {'lunch','coffee','golf','physio','cycling'};       % large break
 acls.smbreak  = {'break','chat'};                         % small break
-acls.instmeet = {'imaging meeting','institute colloquium','neurotk','workshop'}; % institute-wide meetings
+acls.instmeet = {'imaging meeting','institute colloquium','neurotk','workshop','guest lecture'}; % institute-wide meetings
 acls.grmeet   = {'groupmeeting','labmeeting','dysco'};     % group meetings
 acls.indmeet  = {'meeting with'};                         % meetings with individual persons
 acls.litsrch  = {'literature search','scanning new articles'};
@@ -10,10 +10,14 @@ acls.maths    = {'deriving'};
 acls.admin    = {'admin','email'};
 acls.figure   = {'making figure'};
 acls.reading  = {'reading'};
-acls.writing  = {'writing','notes'};
 acls.watch    = {'watching'};
 acls.review   = {'review'};
 acls.prep     = {'preparing'};
+acls.poster   = {'making poster'};
+acls.manage   = {'managing'};
+acls.thinking = {'thinking'};
+acls.doc      = {'documenting'};
+acls.writing  = {'writing','notes',acls.doc{:}}; %#ok<CCAT>
 
 
 %% load log data
@@ -153,7 +157,7 @@ for i = 1:ncls
     mdurs(i) = sum(actall.durs(minds{i}));
 end
 
-total = sum(worktimes(:,3));
+total = sum(worktimes(:,3))/24; % total in days
 
 subplot(1,3,1)
 vis2.pie1 = pie([total-sum(mdurs),sum(mdurs)],[0,1]);
@@ -195,3 +199,9 @@ vis3.bar = bar(individdurs*24);
 xlabel('person')
 ylabel('meeting time in hours')
 set(gca,'XTickLabel',individname)
+
+
+%% time spent working on "paper" (this is the rRNN paper)
+% paper time vs. other time
+
+% evolution of paper time per week

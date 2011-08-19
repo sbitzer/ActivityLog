@@ -1,16 +1,51 @@
-%% activity log
-%  logs activities of the day
+% activitylog(option)
+%
+% logs activities of the day as input by user
+%
+% in:
+%       option  -   string option, one of:
+%                       start,[],not given - start new log for this day
+%                       cont, continue     - continue log of this day
+% out:
+%       a file with name of the form: activitylog_yyyymmdd.mat
+% author:
+%       Sebastian Bitzer
+function activitylog(option)
+
+
+%% setup
+if nargin < 1 || isempty(option)
+    option = 'start';
+end
+
+fname = sprintf('activitylog_%s.mat',datestr(now,'yyyymmdd'));
+
 jtimes = nan(200,1);
 jstr = cell(200,1);
 
-jtimes(1) = now;
-jstr{1} = 'start log';
+switch option
+    case 'start'
+        cnt = 1;
+        jtimes(cnt) = now;
+        jstr{cnt} = 'start log';
+        fprintf(1,'Welcome on %s! What are you going to do next?\n(Finish by typing "feierabend")\n',datestr(jtimes(1),'ddd, dd.mm.yyyy'));
+    case {'cont','continue'}
+        olddata = load(fname);
+        if isfield(olddata,'cnt')   % interruption
+            cnt = olddata.cnt;
+            jtimes(1:cnt) = olddata.jtimes(1:cnt);
+            jstr{1:cnt} = olddata.jstr{1:cnt};
+        else                        % already typed feierabend
+            cnt = length(olddata.jtimes);
+            jtimes(1:cnt) = olddata.jtimes(1:cnt);
+            jstr(1:cnt) = olddata.jstr(1:cnt);
+            jstr{cnt} = 'break';    % replace feierabend with break
+        end
+        fprintf(1,'Welcome back! You''ll continue from "%s" at %s.\n(Finish by typing "feierabend")\n',jstr{cnt},datestr(jtimes(cnt)));
+end
 
-fname = sprintf('activitylog_%s.mat',datestr(jtimes(1),'yyyymmdd'));
 
-fprintf(1,'Welcome on %s! What are you going to do next?\n(Finish by typing "feierabend")\n',datestr(jtimes(1),'ddd, dd.mm.yyyy'));
-
-cnt = 1;
+%% logging
 while isempty(strfind(lower(jstr{cnt}),'feierabend'))
     cnt = cnt + 1;
     jstr{cnt} = input('Next activity: ','s');
@@ -38,7 +73,7 @@ durs = diff(jtimes(2:end));
 acts = jstr(2:end-1);
 
 if ~(all(durs>=0))
-    warning('There are negative durations!')
+    warning('There are negative durations!') %#ok<WNTAG>
 end
 
 % replace return by corresponding activity
