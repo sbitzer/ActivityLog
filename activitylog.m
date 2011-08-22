@@ -34,7 +34,7 @@ switch option
         if isfield(olddata,'cnt')   % interruption
             cnt = olddata.cnt;
             jtimes(1:cnt) = olddata.jtimes(1:cnt);
-            jstr{1:cnt} = olddata.jstr{1:cnt};
+            jstr(1:cnt) = olddata.jstr(1:cnt);
         else                        % already typed feierabend
             cnt = length(olddata.jtimes);
             jtimes(1:cnt) = olddata.jtimes(1:cnt);
