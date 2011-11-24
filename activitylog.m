@@ -50,6 +50,19 @@ while isempty(strfind(lower(jstr{cnt}),'feierabend'))
     cnt = cnt + 1;
     jstr{cnt} = input('Next activity: ','s');
     
+    % if delete previous
+    if strcmp(jstr{cnt}(1:3),'---')
+        % only a delete sign: next input overwrite previous
+        if jstr{cnt}==3
+            cnt = cnt - 2;
+            continue
+        % current input overwrites previous
+        else
+            cnt = cnt - 1;
+            jstr{cnt} = jstr{cnt}(4:end);
+        end
+    end
+    
     % allow that user gives time in format: @HH:MM
     usertime = regexp(jstr{cnt},'(?<=@)[0-2]\d:[0-5]\d','match');
     if isempty(usertime)

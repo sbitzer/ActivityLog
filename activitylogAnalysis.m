@@ -7,6 +7,7 @@ acls.indmeet  = {'meeting with'};                         % meetings with indivi
 acls.litsrch  = {'literature search','scanning new articles'};
 acls.coding   = {'coding','programming'};
 acls.maths    = {'deriving'};
+acls.exp      = {'experiments','experimenting'};
 acls.admin    = {'admin','email'};
 acls.figure   = {'making figure'};
 acls.reading  = {'reading'};
