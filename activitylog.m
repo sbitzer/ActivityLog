@@ -53,13 +53,13 @@ while isempty(strfind(lower(jstr{cnt}),'feierabend'))
     % if delete previous
     if strcmp(jstr{cnt}(1:3),'---')
         % only a delete sign: next input overwrite previous
-        if jstr{cnt}==3
+        if length(jstr{cnt})==3
             cnt = cnt - 2;
             continue
         % current input overwrites previous
         else
+            jstr{cnt-1} = jstr{cnt}(4:end);
             cnt = cnt - 1;
-            jstr{cnt} = jstr{cnt}(4:end);
         end
     end
     
