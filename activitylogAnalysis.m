@@ -18,7 +18,10 @@ acls.poster   = {'making poster'};
 acls.manage   = {'managing'};
 acls.thinking = {'thinking'};
 acls.doc      = {'documenting'};
-acls.writing  = {'writing','notes',acls.doc{:}}; %#ok<CCAT>
+acls.writing  = {'writing','notes'};
+
+aclsnames = fieldnames(acls);
+nacls = length(aclsnames);
 
 
 %% load log data
@@ -75,10 +78,9 @@ end
 
 
 %% check whether all activities are associated with at least one class
-clsnames = fieldnames(acls);
 inds = [];
-for c = 1:length(clsnames)
-    inds = [inds,cstrfind(actall.acts,acls.(clsnames{c}))]; %#ok<AGROW>
+for c = 1:nacls
+    inds = [inds,cstrfind(actall.acts,acls.(aclsnames{c}))]; %#ok<AGROW>
 end
 inds = unique(inds);
 if length(inds)<nact
@@ -356,3 +358,106 @@ for d = dweek
 end
 actweek = actweek(1:cnt);
 dursweek = dursweek(1:cnt);
+
+
+%% distribution of starting and feierabend times
+startt = nan(ndays,1);
+endt = nan(ndays,1);
+for d = 1:ndays
+    startt(d) = rem(actdaily(d).times(1),1)*24;
+    endt(d) = rem(actdaily(d).times(end),1)*24;
+end
+
+vis = initvis([],[370   810   950   300]);
+
+subplot(1,2,1)
+xx = [floor(min(startt)*4),ceil(max(startt)*4)]/4;
+xx = xx(1)+0.125:.25:xx(2);
+[num,xout] = hist(startt,xx);
+vis.bar1 = bar(xout,num,1);
+set(vis.bar1,'FaceColor',[.95 .95 .8],'EdgeColor',[.2 .6 .2])
+ylabel('number of days')
+xlabel('hour of day')
+title('start of working day')
+xl = xlim;
+set(gca,'XTick',round(xl(1)):round(xl(2)))
+
+subplot(1,2,2)
+xx = [floor(min(endt)*4),ceil(max(endt)*4)]/4;
+xx = xx(1)+0.125:.25:xx(2);
+[num,xout] = hist(endt,xx);
+vis.bar2 = bar(xout,num,1);
+set(vis.bar2,'FaceColor',[0 0 .5],'EdgeColor',[.8 .8 .1])
+ylabel('number of days')
+xlabel('hour of day')
+title('feierabend')
+xl = xlim;
+set(gca,'XTick',round(xl(1)):round(xl(2)))
+
+
+%% proportion of time spent on different activities (weekly)
+% find all weeks:
+% find first Monday
+for d = 1:10
+    if weekday(actdays(d))==2
+        break
+    end
+end
+d1 = d;
+
+% find last Friday
+for d = 0:10
+    if weekday(actdays(end-d))==6
+        break
+    end
+end
+dend = ndays-d;
+
+% how many weeks are there?
+nweeks = ceil((actdays(dend)-actdays(d1))/7);
+
+% collect weekly activities
+actfracs = zeros(nweeks,nacls);
+for w = 1:nweeks
+    dweek = actdays(d1) + (w-1)*7;
+    dweek = find(actdays>=dweek & actdays<dweek+7);
+    if ~isempty(dweek)
+        % concatenate all activities of that week
+        actweek = cell(200,1);
+        dursweek = nan(200,1);
+        cnt = 0;
+        for d = dweek
+            na = size(actdaily(d).durs,1);
+            actweek(cnt+(1:na)) = lower(actdaily(d).acts);
+            dursweek(cnt+(1:na)) = actdaily(d).durs;
+            cnt = cnt + na;
+        end
+        actweek = actweek(1:cnt);
+        dursweek = dursweek(1:cnt);
+        
+        weekdurs = zeros(1,nacls);
+        weekdurs(end) = sum(dursweek(cstrfind(actweek,acls.grmeet)));
+        
+        [sbreaki,lbreaki] = findBreaks(actweek,acls.smbreak,acls.bgbreak,dursweek);
+        weekdurs(1) = sum(dursweek(lbreaki));
+        weekdurs(2) = sum(dursweek(sbreaki));
+        
+        % get activity durations for that week
+        for c = 3:nacls
+            assert(~strcmp(aclsnames{c},'smbreak'))
+            aclsc = cellfun(@(x) ['^',x], acls.(aclsnames{c}), 'UniformOutput', 0);
+            weekdurs(c) = weekdurs(c) + sum(dursweek(cstrfind(actweek,aclsc)));
+        end
+        actfracs(w,:) = weekdurs/sum(weekdurs);
+    end
+end
+
+% a figure about the weekly fractions of time I spent on different activities
+vis = initvis([],[140  680 1700 420]);
+vis.bars = bar(actfracs,1,'stacked');
+ylim([0,1])
+xlim([0.5,nweeks+.5])
+
+legend(aclsnames,'Location','EastOutside')
+xlabel('weeks')
+ylabel('fraction of working time')
