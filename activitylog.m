@@ -28,7 +28,7 @@ switch option
         cnt = 1;
         jtimes(cnt) = now;
         jstr{cnt} = 'start log';
-        fprintf(1,'Welcome on %s! What are you going to do next?\n(Finish by typing "feierabend")\n',datestr(jtimes(1),'ddd, dd.mm.yyyy'));
+        fprintf(1,'Welcome on %s! What are you going to do next?\n(Finish by typing "feierabend", help with "???")\n',datestr(jtimes(1),'ddd, dd.mm.yyyy'));
     case {'cont','continue'}
         olddata = load(fname);
         if isfield(olddata,'cnt')   % interruption
@@ -41,7 +41,7 @@ switch option
             jstr(1:cnt) = olddata.jstr(1:cnt);
             jstr{cnt} = 'break';    % replace feierabend with break
         end
-        fprintf(1,'Welcome back! You''ll continue from "%s" at %s.\n(Finish by typing "feierabend")\n',jstr{cnt},datestr(jtimes(cnt)));
+        fprintf(1,'Welcome back! You''ll continue from "%s" at %s.\n(Finish by typing "feierabend", help with "???")\n',jstr{cnt},datestr(jtimes(cnt)));
 end
 
 
