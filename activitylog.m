@@ -50,6 +50,24 @@ while isempty(strfind(lower(jstr{cnt}),'feierabend'))
     cnt = cnt + 1;
     jstr{cnt} = input('Next activity: ','s');
     
+    % if help requested
+    if strcmp(jstr{cnt}(1:3),'???')
+        cnt = cnt - 1;
+        fprintf(1,['options:\n',...
+                   '"---" delete previous log entry and overwrite with next\n',...
+                   '"---message" overwrite previous log entry with message and current time\n',...
+                   '"<--" print last log entry including time\n',...
+                   '"@HH:MM" in any message overwrites current time as log time\n']) %#ok<PRTCAL>
+        continue
+    end
+    
+    % if last log entry requested
+    if strcmp(jstr{cnt}(1:3),'<--')
+        cnt = cnt - 1;
+        fprintf(1,'%s: %s\n',datestr(jtimes(cnt)),jstr{cnt}) %#ok<PRTCAL>
+        continue
+    end
+    
     % if delete previous
     if strcmp(jstr{cnt}(1:3),'---')
         % only a delete sign: next input overwrite previous
