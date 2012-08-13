@@ -15,6 +15,7 @@ acls.watch    = {'watching'};
 acls.review   = {'review'};
 acls.prep     = {'preparing'};
 acls.poster   = {'making poster'};
+acls.video    = {'making video'};
 acls.manage   = {'managing'};
 acls.thinking = {'thinking'};
 acls.doc      = {'documenting'};
@@ -141,6 +142,53 @@ xlabel('day of the week')
 ylabel('average working time in hours')
 
 
+%% average weekly working hours
+% get all recorded days
+days = struct2cell(actdaily);
+days = squeeze(cell2mat(days(4,1,:)));
+
+% find first Monday
+for d1 = 1:ndays
+    if weekday(days(d1)) == 2
+        break
+    end
+end
+
+% find last Friday
+for dend = ndays : -1 : 1
+    if weekday(days(dend)) == 6
+        break
+    end
+end
+
+% span all weeks in between and reshape per week
+alldays = days(d1) : days(dend) + 2;
+nweeks = numel(alldays) / 7;
+alldays = reshape(alldays, [7, nweeks])';
+
+% get working time for each week (set to nan, if incomplete)
+weeklyworktime = nan(nweeks,1);
+fullweek = false(nweeks,1);
+for w = 1:nweeks
+    weekdays = find( ismember(days, alldays(w, :)) );
+    weeklyworktime(w) = sum( worktimes(weekdays, 2) );
+    
+    weekdays = sort( days(weekdays) );
+    if numel(weekdays) > 4 && weekday( weekdays(1) ) == 2 && weekday( weekdays(5) ) == 6
+        fullweek(w) = true;
+    end
+end
+
+% average
+meanweeklyworktime = mean( weeklyworktime(fullweek) );
+
+% plot histogram
+figure
+hist( weeklyworktime(fullweek) )
+title( sprintf('mean = %4.2f', meanweeklyworktime) )
+xlabel('weekly working hours')
+
+
 %% time spent in different meetings compared to netto working time
 %  this excludes any preparation time or post-processing time
 meetcls = {'instmeet','grmeet','indmeet'};
@@ -254,7 +302,7 @@ nproj = length(projnames);
 % [rrnns, fernns]
 % [placecells, eduardo]
 prjeq = {'dem','free energy','background',...
-         'fernns','eduardo'};
+         'fernns','eduardo','pdecision'};
 projNames = setdiff(projnames,prjeq);
 prji = nan(nproj,1);
 for p = 1:nproj
@@ -267,6 +315,8 @@ for p = 1:nproj
             prji(p) = cstrfind(projNames,'rrnns');
         case 'eduardo'
             prji(p) = cstrfind(projNames,'placecells');
+        case 'pdecision'
+            prji(p) = cstrfind(projNames,'pdecisions');
         otherwise
             prji(p) = cstrfind(projNames,projnames{p});
     end
@@ -342,7 +392,7 @@ ylabel('fraction of project time')
 
 
 %% show activities of a particular week
-w = 35;
+w = 47;
 dweek = actdays(d1) + (w-1)*7;
 dweek = find(actdays>=dweek & actdays<dweek+7);
 
@@ -396,6 +446,8 @@ set(gca,'XTick',round(xl(1)):round(xl(2)))
 
 
 %% proportion of time spent on different activities (weekly)
+% THERE MUST BE A BUG SOMEWHERE HERE!!!
+
 % find all weeks:
 % find first Monday
 for d = 1:10
