@@ -4,6 +4,7 @@ acls.smbreak  = {'break','chat'};                         % small break
 acls.instmeet = {'imaging meeting','institute colloquium','neurotk','workshop','guest lecture'}; % institute-wide meetings
 acls.grmeet   = {'groupmeeting','labmeeting','dysco'};     % group meetings
 acls.indmeet  = {'meeting with'};                         % meetings with individual persons
+acls.talk     = {'presenting'};
 acls.litsrch  = {'literature search','scanning new articles'};
 acls.coding   = {'coding','programming'};
 acls.maths    = {'deriving'};
@@ -20,6 +21,7 @@ acls.manage   = {'managing'};
 acls.thinking = {'thinking'};
 acls.doc      = {'documenting'};
 acls.writing  = {'writing','notes'};
+acls.learn    = {'attending lecture'};
 
 aclsnames = fieldnames(acls);
 nacls = length(aclsnames);
@@ -277,15 +279,15 @@ xticklabel_rotate
 % coding, thinking about, writing ... for , 
 
 % extract project names after occurrence of "for"
-namestmp = regexp(actall.acts,'(?<=for )[\w ]+\w','match','once');
+namestmp = regexp(actall.acts,'(?<=for )[\w \-]+\w','match','once');
 projnames = namestmp(cstrfind(namestmp,'\w+'));
 % extract additional project names after occurrence of coding
-namestmp = regexp(actall.acts,'(?<=coding )(?!for )[\w ]+\w','match','once');
+namestmp = regexp(actall.acts,'(?<=coding )(?!for )[\w \-]+\w','match','once');
 projnames = unique([projnames(:);namestmp(cstrfind(namestmp,'\w+'))]);
-namestmp = regexp(actall.acts,'(?<=programming )(?!for )[\w ]+\w','match','once');
+namestmp = regexp(actall.acts,'(?<=programming )(?!for )[\w \-]+\w','match','once');
 projnames = unique([projnames(:);namestmp(cstrfind(namestmp,'\w+'))]);
 % extract additional project names after occurrence of thinking about
-namestmp = regexp(actall.acts,'(?<=thinking about )[\w ]+\w','match','once');
+namestmp = regexp(actall.acts,'(?<=thinking about )[\w \-]+\w','match','once');
 projnames = unique([projnames(:);namestmp(cstrfind(namestmp,'\w+'))]);
 
 % assumption is that the above was sufficient to find all project names
@@ -301,8 +303,11 @@ nproj = length(projnames);
 % [general, background]
 % [rrnns, fernns]
 % [placecells, eduardo]
+% [kai, kai dannies]
+% [mbpdm paper, mb-pdm paper, pdecision paper]
+% these project names will be replaced:
 prjeq = {'dem','free energy','background',...
-         'fernns','eduardo','pdecision'};
+         'fernns','eduardo','pdecision', 'kai', 'mb-pdm paper', 'pdecision paper'};
 projNames = setdiff(projnames,prjeq);
 prji = nan(nproj,1);
 for p = 1:nproj
@@ -317,8 +322,14 @@ for p = 1:nproj
             prji(p) = cstrfind(projNames,'placecells');
         case 'pdecision'
             prji(p) = cstrfind(projNames,'pdecisions');
+        case {'kai dannies'}
+            prji(p) = cstrfind(projNames,'kai');
+        case {'mb-pdm paper', 'pdecision paper'}
+            prji(p) = cstrfind(projNames,'mbpdm paper');
         otherwise
-            prji(p) = cstrfind(projNames,projnames{p});
+            tmp = cstrfind(projNames,projnames{p});
+            assert(numel(tmp)==1, 'assertion failed: the title of a project occurs inside another project title')
+            prji(p) = tmp;
     end
 end
 nprojeq = length(projNames);
