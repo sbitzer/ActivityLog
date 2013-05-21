@@ -1,7 +1,7 @@
 %% definition of classes of activities
 acls.bgbreak  = {'lunch','coffee','golf','physio','cycling'};       % large break
 acls.smbreak  = {'break','chat'};                         % small break
-acls.instmeet = {'imaging meeting','institute colloquium','neurotk','workshop','guest lecture'}; % institute-wide meetings
+acls.instmeet = {'imaging meeting','institute colloquium','neurotk','workshop','guest lecture', 'guest talk'}; % institute-wide meetings
 acls.grmeet   = {'groupmeeting','labmeeting','dysco'};     % group meetings
 acls.indmeet  = {'meeting with'};                         % meetings with individual persons
 acls.talk     = {'presenting'};
@@ -21,7 +21,8 @@ acls.manage   = {'managing'};
 acls.thinking = {'thinking'};
 acls.doc      = {'documenting'};
 acls.writing  = {'writing','notes'};
-acls.learn    = {'attending lecture'};
+acls.learn    = {'attending lecture', 'lecture'};
+acls.social   = {'social meeting', 'meeting with everyone'};
 
 aclsnames = fieldnames(acls);
 nacls = length(aclsnames);
@@ -44,7 +45,11 @@ for d = 1:ndays
     actdaily(d).acts = fdata.jstr(2:end-1);
     actdaily(d).day  = floor(fdata.jtimes(1));
     
-    assert(all(actdaily(d).durs>=0))
+    % if there are negative durations
+    if any(actdaily(d).durs < 0)
+        % throw error naming the day
+        error('negative durations in activitylog_%s.mat', datestr(actdaily(d).day, 'yyyymmdd'))
+    end
     
     nact = nact + length(actdaily(d).acts);
     
@@ -307,7 +312,7 @@ nproj = length(projnames);
 % [mbpdm paper, mb-pdm paper, pdecision paper]
 % these project names will be replaced:
 prjeq = {'dem','free energy','background',...
-         'fernns','eduardo','pdecision', 'kai', 'mb-pdm paper', 'pdecision paper'};
+         'fernns','eduardo','pdecision', 'kai', 'mb-pdm paper', 'pdecision paper', 'dbpdm paper'};
 projNames = setdiff(projnames,prjeq);
 prji = nan(nproj,1);
 for p = 1:nproj
@@ -324,7 +329,7 @@ for p = 1:nproj
             prji(p) = cstrfind(projNames,'pdecisions');
         case {'kai dannies'}
             prji(p) = cstrfind(projNames,'kai');
-        case {'mb-pdm paper', 'pdecision paper'}
+        case {'mb-pdm paper', 'pdecision paper', 'dbpdm paper'}
             prji(p) = cstrfind(projNames,'mbpdm paper');
         otherwise
             tmp = cstrfind(projNames,projnames{p});
