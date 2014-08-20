@@ -208,7 +208,7 @@ for i = 1:ncls
     mdurs(i) = sum(actall.durs(minds{i}));
 end
 
-vis2 = initvis([],[680   800   950   300]);
+vis2 = initvis([]);
 
 subplot(1,3,3)
 vis2.pie3 = pie(mdurs);
@@ -434,7 +434,7 @@ for d = 1:ndays
     endt(d) = rem(actdaily(d).times(end),1)*24;
 end
 
-vis = initvis([],[370   810   950   300]);
+vis = initvis([]);
 
 subplot(1,2,1)
 xx = [floor(min(startt)*4),ceil(max(startt)*4)]/4;

@@ -1,3 +1,6 @@
 [submodule "matlabHelpers"]
 	path = matlabHelpers
 	url = /home/raid1/bitzer/code/matlabHelpers/.git
+[submodule "Matlab-helpers"]
+	path = Matlab-helpers
+	url = https://github.com/sbitzer/Matlab-helpers.git
