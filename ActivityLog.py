@@ -6,6 +6,8 @@ Created on Wed Aug 20 19:07:49 2014
 """
 
 import sqlite3
+import re
+
 
 def isSQLite3(filename):
     from os.path import isfile, getsize
@@ -26,15 +28,15 @@ def isSQLite3(filename):
 
 def writeTestEntries(alog):
     alog.dbcur.execute(
-        "INSERT INTO activities (act_name, act_label) VALUES('email', 'email')")
+        "INSERT INTO activities (name, label) VALUES('email', 'email')")
     alog.dbcur.execute(
-        "INSERT INTO activities (act_name, act_label) VALUES('break', 'break')")
+        "INSERT INTO activities (name, label) VALUES('break', 'break')")
     alog.dbcur.execute(
-        "INSERT INTO activities (act_name, act_label) VALUES('lunch', 'lunch')")
+        "INSERT INTO activities (name, label) VALUES('lunch', 'lunch')")
     alog.dbcur.execute(
-        "INSERT INTO projects (pj_name, pj_label) VALUES('BeeExp', 'BeeExp')")
+        "INSERT INTO projects (name, label) VALUES('BeeExp', 'BeeExp')")
     alog.dbcur.execute(
-        "INSERT INTO projects (pj_name, pj_label) VALUES('Bayesian attractor model', 'BAttM')")
+        "INSERT INTO projects (name, label) VALUES('Bayesian attractor model', 'BAttM')")
     alog.dbcur.execute(
         "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('email', 'activities', 1)")
     alog.dbcur.execute(
@@ -56,6 +58,10 @@ def writeTestEntries(alog):
 class ActivityLog(object):
     """A class which defines and manipulates an activity log"""
 
+    # this separates the three parts of a job string:
+    # activity[ with people][ for project|org|person]
+    act_re = re.compile('([\w ]+?)(?: with ([\w ,]+?))?(?:$| for ([\w ]+))')
+
     def __init__(self, dbname):
         dbstate = isSQLite3(dbname)
         if dbstate == 1:
@@ -76,36 +82,40 @@ class ActivityLog(object):
                 self.dbcon = None
 
 
+    def __del__(self):
+        self.dbcon.close()
+
+
     def initDB(self):
         """Creates a database with the predefined schema."""
 
         self.dbcur.execute(
             "CREATE TABLE activities ("
-                "act_id INTEGER PRIMARY KEY,"
-                "act_name TEXT NOT NULL,"
-                "act_label TEXT UNIQUE NOT NULL )" )
+                "id INTEGER PRIMARY KEY,"
+                "name TEXT NOT NULL,"
+                "label TEXT UNIQUE NOT NULL )" )
 
         self.dbcur.execute(
             "CREATE TABLE organisations ("
-                "org_id INTEGER PRIMARY KEY,"
-                "org_name TEXT NOT NULL,"
-                "org_label TEXT UNIQUE NOT NULL )" )
+                "id INTEGER PRIMARY KEY,"
+                "name TEXT NOT NULL,"
+                "label TEXT UNIQUE NOT NULL )" )
 
         self.dbcur.execute(
             "CREATE TABLE people ("
-                "p_id INTEGER PRIMARY KEY,"
-                "p_name TEXT NOT NULL,"
-                "p_label TEXT UNIQUE NOT NULL,"
-                "p_org INTEGER,"
-                "FOREIGN KEY(p_org) REFERENCES organisations(org_id) )" )
+                "id INTEGER PRIMARY KEY,"
+                "name TEXT NOT NULL,"
+                "label TEXT UNIQUE NOT NULL,"
+                "org INTEGER,"
+                "FOREIGN KEY(org) REFERENCES organisations(id) )" )
 
         self.dbcur.execute(
             "CREATE TABLE projects ("
-                "pj_id INTEGER PRIMARY KEY,"
-                "pj_name TEXT NOT NULL,"
-                "pj_label TEXT UNIQUE NOT NULL,"
-                "pj_org INTEGER,"
-                "FOREIGN KEY(pj_org) REFERENCES organisations(org_id) )" )
+                "id INTEGER PRIMARY KEY,"
+                "name TEXT NOT NULL,"
+                "label TEXT UNIQUE NOT NULL,"
+                "org INTEGER,"
+                "FOREIGN KEY(org) REFERENCES organisations(id) )" )
 
         # This is a dictionary which stores alternative strings used to
         # describe the same entity in the database. Strictly, there are
@@ -122,11 +132,11 @@ class ActivityLog(object):
         # the main table storing time-logged jobs
         self.dbcur.execute(
             "CREATE TABLE jobs ("
-                "job_id INTEGER PRIMARY KEY,"
+                "id INTEGER PRIMARY KEY,"
                 "start TEXT NOT NULL UNIQUE,"
                 "end TEXT NOT NULL UNIQUE,"
                 "activity INTEGER NOT NULL,"
-                "FOREIGN KEY(activity) REFERENCES activities(act_id) )" )
+                "FOREIGN KEY(activity) REFERENCES activities(id) )" )
 
         # the following tables implement possible one-to-many relationships
         # between jobs and people, projects and organisations
@@ -136,33 +146,152 @@ class ActivityLog(object):
                 "job INTEGER,"
                 "person INTEGER,"
                 "PRIMARY KEY(job, person),"
-                "FOREIGN KEY(job) REFERENCES jobs(job_id),"
-                "FOREIGN KEY(person) REFERENCES people(p_id) )" )
+                "FOREIGN KEY(job) REFERENCES jobs(id),"
+                "FOREIGN KEY(person) REFERENCES people(id) )" )
 
         self.dbcur.execute(
             "CREATE TABLE job_pj ("
                 "job INTEGER,"
                 "project INTEGER,"
                 "PRIMARY KEY(job, project),"
-                "FOREIGN KEY(job) REFERENCES jobs(job_id),"
-                "FOREIGN KEY(project) REFERENCES projects(pj_id) )" )
+                "FOREIGN KEY(job) REFERENCES jobs(id),"
+                "FOREIGN KEY(project) REFERENCES projects(id) )" )
 
         self.dbcur.execute(
             "CREATE TABLE job_org ("
                 "job INTEGER,"
                 "org INTEGER,"
                 "PRIMARY KEY(job, org),"
-                "FOREIGN KEY(job) REFERENCES jobs(job_id),"
-                "FOREIGN KEY(org) REFERENCES organisations(org_id) )" )
+                "FOREIGN KEY(job) REFERENCES jobs(id),"
+                "FOREIGN KEY(org) REFERENCES organisations(id) )" )
 
         self.dbcon.commit()
 
         writeTestEntries(self)
 
 
+    def addBaseType(self, name, table):
+        corrinput = False
+
+        while not corrinput:
+            response = raw_input("You can now provide a shorter version of %s as "
+                "label, \nif you wish. If you currently add a person or project\n"
+                "to the database, you may assign that to an organisation.\n"
+                "Provide this as 'label § organisation'! You can leave\n"
+                "anyone of them empty as long as you provide the '§'.\n"
+                "Simply press ENTER to use %s as label and no organisation:\n"
+                % (name, name))
+            if response == '':
+                corrinput = True
+                label = name
+                org = None
+            else:
+                match = re.match('(\w*)\s*§\s*(\w*)', response)
+                if match == None:
+                    print("DID NOT RECOGNISE FORMAT!\n"
+                          "Make sure you follow the instructions below!\n"
+                          "Only use alpha-numeric names on either side of the §!\n\n")
+                    continue
+                else:
+                    corrinput = True
+
+                    if match.group(1) == '':
+                        label = name
+                    else:
+                        label = match.group(1)
+
+                    if match.group(2) == '':
+                        org = None
+                    else:
+                        org = self.getIDfromDict(match.group(2), 'organisations')
+
+        try:
+            if (table == 'people' or table == 'projects') and not org == None:
+                self.dbcur.execute(
+                    "INSERT INTO ? (name, label) "
+                    "VALUES(?, ?)", (table, name, label))
+            else:
+                self.dbcur.execute(
+                    "INSERT INTO ? (name, label, org) "
+                    "VALUES(?, ?, ?)", (table, name, label, org))
+
+            self.dbcon.commit()
+
+            newid = alog.dbcur.lastrowid
+        # TODO: specify proper exception to catch
+        except:
+            print("Database insertion failed: skipping\n")
+            newid = None
+
+        return newid
+
+
+    def resolveUnknownName(self, name, table):
+        if len(table) > 1:
+            tabstr = '0: %s' % table[0]
+            for i in range(1, len(table)):
+                tabstr = tabstr + ', %d: %s' % (i, table[i])
+
+            response = raw_input("I'm sorry. Does %s belong into %s?:\n" % (name, tabstr))
+            table = table[int(response)]
+        else:
+            table = table[0]
+
+        # misspelled, new alias, or new entry?
+        response = raw_input("There is no %s in %s. Add in %s (1), "
+            "add as alias (2: name) or check DB (3)?\n"
+            "If you made a typo, you can also just provide the name again "
+            "without the typo:\n" % (name, table, table))
+
+        if response[0] == '1':
+            return (self.addBaseType(name, table), table)
+        elif response[0] == '2':
+            nameintab = response[2:]
+            tab_id = self.getIDfromDict(nameintab, table)
+            self.dbcur.execute(
+                "INSERT INTO dictionary (word, tab_name, tab_id) "
+                "VALUES(?, ?, ?)", (name, table, tab_id))
+            self.dbcon.commit()
+
+            return (tab_id, table)
+        elif response[0] == '3':
+            pass
+            # print all table entries repeating those in the end that start
+            # with the same letters and redo
+
+        else:
+            return self.getIDfromDict(response, table)
+
+
+    def getIDfromDict(self, name, table):
+        if name == None:
+            return None
+
+        if type(table).__name__ == 'str':
+            table = (table,)
+
+        # because table may have several values I have to construct an IN
+        # statement with variable number of elements (?) inside paranthesis
+        placeholders = ','.join('?' for unused in table)
+        self.dbcur.execute(
+            "SELECT tab_id, tab_name "
+            "FROM dictionary "
+            "WHERE word = ? and tab_name IN %s" % placeholders, (name,)+ table )
+        result = self.dbcur.fetchone()
+        if result == None:
+            # name is not in dictionary:
+            return self.resolveUnknownName(name, table)
+        else:
+            return result
+
+
+    def parsePeople(self, pstr):
+        # returns a list of people IDs from the database given a string of
+        # people in the format A (,|and) B (,|and) ...
+        pass
+
     def parseJobStr(self, jobstr):
         """parses the raw input from the user"""
-        pass
 
         # act
         # act with {people}
@@ -171,19 +300,23 @@ class ActivityLog(object):
         # act for org
         # act for person
 
-    def getIDfromDict(self, name, table):
-        self.dbcur.execute(
-            "SELECT tab_name, tab_id FROM dictionary WHERE word = ?", (name, ) )
-        result = self.dbcur.fetchone()
-        if result == None:
-            # name is not in dictionary:
-            return None
+        # extract activity and modifier
+        match = self.act_re.match(jobstr)
+        if match == None:
+            actid = None
+            people = None
+            forinfo = None
         else:
-            assert( result[0] == table )
-            return result[1]
+            act = self.getIDfromDict(match.group(1).lower(), 'activities')
+            actid = act[0]
+            people = self.parsePeople(match.group(2))
+            forinfo = self.getIDfromDict(match.group(3), ('projects',
+                                         'organisations'))
+
+        return actid, people, forinfo
 
 
-    def addEntry(self, start, end, act_id, proj=None, people=None, org=None):
+    def addJob(self, start, end, id, proj=None, people=None, org=None):
         # get or add activity ID
         pass
 
@@ -193,6 +326,7 @@ class ActivityLog(object):
         # get or add people IDs
 
         # get or add organisation IDs
+
 
 if __name__ == "__main__":
     alog = ActivityLog('test.sqlite')
