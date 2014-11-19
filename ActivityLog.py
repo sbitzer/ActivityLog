@@ -7,6 +7,7 @@ Created on Wed Aug 20 19:07:49 2014
 
 import sqlite3
 import re
+import itertools
 
 
 def isSQLite3(filename):
@@ -229,8 +230,8 @@ class ActivityLog(object):
     def resolveUnknownName(self, name, table):
         if len(table) > 1:
             tabstr = '0: %s' % table[0]
-            for i in range(1, len(table)):
-                tabstr = tabstr + ', %d: %s' % (i, table[i])
+            for i, tab in enumerate(table[1:]):
+                tabstr = tabstr + ', %d: %s' % (i+1, tab)
 
             response = raw_input("I'm sorry. Does %s belong into %s?:\n" % (name, tabstr))
             table = table[int(response)]
@@ -288,7 +289,10 @@ class ActivityLog(object):
     def parsePeople(self, pstr):
         # returns a list of people IDs from the database given a string of
         # people in the format A (,|and) B (,|and) ...
-        pass
+
+        namelist = map( lambda s: s.split(', '), pstr.split(' and ') )
+        namelist = list( itertools.chain.from_iterable(namelist) )
+
 
     def parseJobStr(self, jobstr):
         """parses the raw input from the user"""
