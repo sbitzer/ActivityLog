@@ -8,6 +8,7 @@ Created on Wed Aug 20 19:07:49 2014
 import sqlite3
 import re
 import itertools
+import datetime as dt
 
 
 def isSQLite3(filename):
@@ -61,12 +62,14 @@ class ActivityLog(object):
 
     # this separates the three parts of a job string:
     # activity[ with people][ for project|org|person]
-    act_re = re.compile('([\w ]+?)(?: with ([\w ,]+?))?(?:$| for ([\w ]+))')
+    act_re = re.compile('([\w ]+?)(?: with ([\w ,]+?))?(?:$| for ([\w ,]+))')
+
+    lastjob = ('', dt.datetime.min)
 
     def __init__(self, dbname):
         dbstate = isSQLite3(dbname)
         if dbstate == 1:
-            self.dbcon = sqlite3.connect(dbname)
+            self.dbcon = sqlite3.connect(dbname, detect_types=sqlite3.PARSE_DECLTYPES)
             self.dbcur = self.dbcon.cursor()
             self.dbcur.execute("PRAGMA foreign_keys = ON")
         elif dbstate == 0:
@@ -134,8 +137,8 @@ class ActivityLog(object):
         self.dbcur.execute(
             "CREATE TABLE jobs ("
                 "id INTEGER PRIMARY KEY,"
-                "start TEXT NOT NULL UNIQUE,"
-                "end TEXT NOT NULL UNIQUE,"
+                "start TIMESTAMP NOT NULL UNIQUE,"
+                "end TIMESTAMP NOT NULL UNIQUE,"
                 "activity INTEGER NOT NULL,"
                 "FOREIGN KEY(activity) REFERENCES activities(id) )" )
 
@@ -293,6 +296,37 @@ class ActivityLog(object):
         namelist = map( lambda s: s.split(', '), pstr.split(' and ') )
         namelist = list( itertools.chain.from_iterable(namelist) )
 
+        idlist = []
+        for name in namelist:
+            idtab = self.getIDfromDict(name, 'people')
+            idlist.append(idtab[0])
+
+        return idlist
+
+
+    def parseForinfo(self, forstr):
+
+        # project-organisation list
+        polist = map( lambda s: s.split(', '), forstr.split(' and ') )
+        polist = list( itertools.chain.from_iterable(polist) )
+
+        pjids = []
+        orgids = []
+        for po in polist:
+            forid, fortab = self.getIDfromDict(po, ('projects', 'organisations'))
+
+            if fortab == 'projects':
+                pjids.append(forid)
+            else:
+                orgids.append(forid)
+
+        if len(pjids) == 0:
+            pjids = None
+        if len(orgids) == 0:
+            orgids = None
+
+        return pjids, orgids
+
 
     def parseJobStr(self, jobstr):
         """parses the raw input from the user"""
@@ -306,30 +340,60 @@ class ActivityLog(object):
 
         # extract activity and modifier
         match = self.act_re.match(jobstr)
-        if match == None:
-            actid = None
-            people = None
-            forinfo = None
-        else:
+
+        act = None
+        people = None
+        orgs = None
+        projects = None
+
+        if match != None:
             act = self.getIDfromDict(match.group(1).lower(), 'activities')
-            actid = act[0]
-            people = self.parsePeople(match.group(2))
-            forinfo = self.getIDfromDict(match.group(3), ('projects',
-                                         'organisations'))
+            act = act[0]
 
-        return actid, people, forinfo
+            if match.group(2) != None:
+                people = self.parsePeople(match.group(2))
 
+            if match.group(3) != None:
+                projects, orgs = self.parseForinfo(match.group(3))
 
-    def addJob(self, start, end, id, proj=None, people=None, org=None):
-        # get or add activity ID
-        pass
+        return act, people, projects, orgs
 
 
-        # get or add project IDs
+    def addJobToDB(self, start, end, act, projects=None, people=None, orgs=None):
+        # add job to jobs table and retrieve its id
+        self.dbcur.execute(
+            "INSERT INTO jobs (start, end, activity) "
+            "VALUES(?, ?, ?)", (start, end, act) )
+        jobid = self.dbcur.lastrowid
 
-        # get or add people IDs
+        # add associated project(s), if exist
+        if projects != None:
+            for pjid in projects:
+                self.dbcur.execute(
+                    "INSERT INTO job_pj (job, project) "
+                    "VALUES(?, ?)", (jobid, pjid) )
 
-        # get or add organisation IDs
+        # add associated organisation(s), if exist
+        if orgs != None:
+            for oid in orgs:
+                self.dbcur.execute(
+                    "INSERT INTO job_org (job, org) "
+                    "VALUES(?, ?)", (jobid, oid) )
+
+        # add associated people, if exist
+        if people != None:
+            for pid in people:
+                self.dbcur.execute(
+                    "INSERT INTO job_p (job, person) "
+                    "VALUES(?, ?)", (jobid, pid) )
+
+        self.dbcon.commit()
+
+
+    def processJob(self, date, jobstr):
+        act, people, projects, orgs = self.parseJobStr(jobstr)
+
+
 
 
 if __name__ == "__main__":
