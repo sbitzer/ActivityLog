@@ -73,7 +73,7 @@ class ActivityLog(cmd.Cmd):
     # this separates the three parts of a job string:
     # activity[ with people][ for project|org|person]
     act_re = re.compile('([\w ]+?)(?: with ([\w ,]+?))?(?:$| (?:for|about) ([\w ,]+))')
-    time_re = re.compile('([\w ,]+)?(?:@(\d+):(\d+))?')
+    time_re = re.compile('([\w ,]+)?(?:@(\d+):(\d+)(?::(\d+))?)?')
 
     # (id of last row in jobs, start timestamp in that row)
     lastjob = (None, None)
@@ -534,13 +534,19 @@ class ActivityLog(cmd.Cmd):
             jobstr = match.group(1).strip()
 
             if match.group(2) != None:
+                if match.group(4) != None:
+                    secs = 0
+                else:
+                    secs = int(match.group(4))
+
                 # check whether time is valid
                 hours = int(match.group(2))
                 mins = int(match.group(3))
 
-                if hours >= 0 and hours < 24 and mins >= 0 and mins < 60:
+                if (hours >= 0 and hours < 24 and mins >= 0 and mins < 60 and
+                    secs >= 0 and secs < 60):
                     indt = dt.datetime.combine(dt.date.today(),
-                                               dt.time(hours, mins))
+                                               dt.time(hours, mins, secs))
                 else:
                     print "invalid time: taking current time instead\n"
 
