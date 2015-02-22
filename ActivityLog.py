@@ -42,13 +42,13 @@ def writeTestEntries(alog):
     alog.dbcur.execute(
         "INSERT INTO projects (name, label) VALUES('Bayesian attractor model', 'BAttM')")
     alog.dbcur.execute(
-        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('email', 'activities', 1)")
+        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('email', 'activities', 2)")
     alog.dbcur.execute(
-        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('small break', 'activities', 2)")
+        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('small break', 'activities', 3)")
     alog.dbcur.execute(
-        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('break', 'activities', 2)")
+        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('break', 'activities', 3)")
     alog.dbcur.execute(
-        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('lunch', 'activities', 3)")
+        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('lunch', 'activities', 4)")
     alog.dbcur.execute(
         "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('BeeExp', 'projects', 1)")
     alog.dbcur.execute(
@@ -61,7 +61,7 @@ def writeTestEntries(alog):
         dur = random.random() * 1000
         datetime = now + dt.timedelta(minutes = 2*i - 2*7)
         alog.dbcur.execute(
-            "INSERT INTO jobs (start, duration, activity) VALUES (?, ?, 1)",
+            "INSERT INTO jobs (start, duration, activity) VALUES (?, ?, 2)",
             (datetime, dur))
 
     alog.dbcon.commit()
@@ -135,6 +135,15 @@ class ActivityLog(cmd.Cmd):
                 "org INTEGER,"
                 "FOREIGN KEY(org) REFERENCES organisations(id) )" )
 
+        # this table stores default activities for projects which are used in
+        # job strings without an activity
+        self.dbcur.execute(
+            "CREATE TABLE pj_defact ("
+                "project INTEGER PRIMARY KEY,"
+                "activity INTEGER,"
+                "FOREIGN KEY(project) REFERENCES projects(id),"
+                "FOREIGN KEY(activity) REFERENCES activities(id) )" )
+
         # This is a dictionary which stores alternative strings used to
         # describe the same entity in the database. Strictly, there are
         # foreign key constraints on the tab_id, but because I chose to use a
@@ -182,6 +191,15 @@ class ActivityLog(cmd.Cmd):
                 "PRIMARY KEY(job, org),"
                 "FOREIGN KEY(job) REFERENCES jobs(id),"
                 "FOREIGN KEY(org) REFERENCES organisations(id) )" )
+
+        self.dbcur.execute(
+            "INSERT INTO activities (name, label) VALUES('default activity', 'mixed')")
+        self.dbcur.execute(
+        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('mixed', 'activities', 1)")
+        self.dbcur.execute(
+        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('default', 'activities', 1)")
+        self.dbcur.execute(
+        "INSERT INTO dictionary (word, tab_name, tab_id) VALUES('default activity', 'activities', 1)")
 
         self.dbcon.commit()
 
@@ -354,6 +372,49 @@ class ActivityLog(cmd.Cmd):
         return pjids, pids, orgids
 
 
+    def setDefaultActivity(self, projectid):
+        self.dbcur.execute(
+            "SELECT name "
+            "FROM projects "
+            "WHERE id = ?", (projectid,) )
+        pjname = self.dbcur.fetchone()
+        pjname = pjname[0]
+
+        response = raw_input("Default activity for project '%s'\n"
+            "(or type help): " % pjname)
+        if response.strip().lower() == "help":
+            response = raw_input("You logged project '%s' in place\n"
+                "of an activity. Whenever you do that the job will\n"
+                "be logged with a default activity associated with\n"
+                "the project. What activity should that be? Simply\n"
+                "press Enter, if you want to use the default 'mixed'\n"
+                "activity as your default!:\n" % pjname)
+        if response == '':
+            response = 'mixed'
+
+        actid = self.getIDfromDict(response, 'activities')
+        self.dbcur.execute(
+            "INSERT INTO pj_defact (project, activity) "
+            "VALUES(?, ?)", (projectid, actid[0]))
+        self.dbcon.commit()
+
+        return actid[0]
+
+
+    def getDefaultActivity(self, projectid):
+        self.dbcur.execute(
+            "SELECT activity "
+            "FROM pj_defact "
+            "WHERE project = ?", (projectid,) )
+
+        result = self.dbcur.fetchone()
+        if result == None:
+            # this project has no default activity, yet
+            return self.setDefaultActivity(projectid)
+        else:
+            return result[0]
+
+
     def parseJobStr(self, jobstr):
         """parses the raw input from the user"""
 
@@ -372,18 +433,31 @@ class ActivityLog(cmd.Cmd):
         projects = None
 
         if match != None:
-            act = self.getIDfromDict(match.group(1).lower(), 'activities')
-            act = act[0]
+            if match.group(3) != None:
+                projects, person, orgs = self.parseForinfo(match.group(3))
+            else:
+                person = []
+
+            actpj, tab = self.getIDfromDict(match.group(1), ('activities',
+                                            'projects'))
+
+            # if a project name was used in place of an activity
+            if tab == 'projects':
+                if projects == None:
+                    projects = [actpj]
+
+                    # get the default activity for this project
+                    act = self.getDefaultActivity(projects[0])
+                else:
+                    # raise an error
+                    raise RuntimeError
+            else:
+                act = actpj
 
             if match.group(2) != None:
                 people = self.parsePeople(match.group(2))
             else:
                 people = []
-
-            if match.group(3) != None:
-                projects, person, orgs = self.parseForinfo(match.group(3))
-            else:
-                person = []
 
             people = people + person
             if len(people) == 0:
@@ -534,7 +608,7 @@ class ActivityLog(cmd.Cmd):
             jobstr = match.group(1).strip()
 
             if match.group(2) != None:
-                if match.group(4) != None:
+                if match.group(4) == None:
                     secs = 0
                 else:
                     secs = int(match.group(4))
