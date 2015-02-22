@@ -72,7 +72,7 @@ class ActivityLog(cmd.Cmd):
 
     # this separates the three parts of a job string:
     # activity[ with people][ for project|org|person]
-    act_re = re.compile('([\w ]+?)(?: with ([\w ,]+?))?(?:$| (?:for|about) ([\w ,]+))')
+    act_re = re.compile('([\w ]+?)(?: with ([\w ,]+?))?(?:$| (?:fro|for|about) ([\w ,]+))')
     time_re = re.compile('([\w ,]+)?(?:@(\d+):(\d+)(?::(\d+))?)?')
 
     # (id of last row in jobs, start timestamp in that row)
@@ -238,7 +238,7 @@ class ActivityLog(cmd.Cmd):
 
         self.dbcon.commit()
 
-        newid = alog.dbcur.lastrowid
+        newid = self.dbcur.lastrowid
 
         # add also to dictionary
         self.dbcur.execute(
