@@ -34,7 +34,7 @@ for d = 1:ndays
     end
 
     for a = 1:nact
-        fprintf(outfile, '%.5f, %.5f, %s\n', startt(a), endt(a), acts{a})
+        fprintf(outfile, '%.5f; %.5f; %s\n', startt(a), endt(a), acts{a})
     end
 
 end
