@@ -11,6 +11,7 @@ import itertools
 import datetime as dt
 import cmd
 import random
+import sys
 
 
 def isSQLite3(filename):
@@ -110,19 +111,19 @@ class ActivityLog(cmd.Cmd):
         self.dbcur.execute(
             "CREATE TABLE activities ("
                 "id INTEGER PRIMARY KEY,"
-                "name TEXT NOT NULL,"
+                "name TEXT UNIQUE NOT NULL,"
                 "label TEXT UNIQUE NOT NULL )" )
 
         self.dbcur.execute(
             "CREATE TABLE organisations ("
                 "id INTEGER PRIMARY KEY,"
-                "name TEXT NOT NULL,"
+                "name TEXT UNIQUE NOT NULL,"
                 "label TEXT UNIQUE NOT NULL )" )
 
         self.dbcur.execute(
             "CREATE TABLE people ("
                 "id INTEGER PRIMARY KEY,"
-                "name TEXT NOT NULL,"
+                "name TEXT UNIQUE NOT NULL,"
                 "label TEXT UNIQUE NOT NULL,"
                 "org INTEGER,"
                 "FOREIGN KEY(org) REFERENCES organisations(id) )" )
@@ -130,7 +131,7 @@ class ActivityLog(cmd.Cmd):
         self.dbcur.execute(
             "CREATE TABLE projects ("
                 "id INTEGER PRIMARY KEY,"
-                "name TEXT NOT NULL,"
+                "name TEXT UNIQUE NOT NULL,"
                 "label TEXT UNIQUE NOT NULL,"
                 "org INTEGER,"
                 "FOREIGN KEY(org) REFERENCES organisations(id) )" )
@@ -245,25 +246,41 @@ class ActivityLog(cmd.Cmd):
                         org = self.getIDfromDict(match.group(2), 'organisations')
 
         # may FAIL because label not unique!
-        if (table == 'people' or table == 'projects') and not org == None:
-            self.dbcur.execute(
-                "INSERT INTO '%s' (name, label, org) "
-                "VALUES(?, ?, ?)" % table, (name, label, org))
+        try:
+            if (table == 'people' or table == 'projects') and not org == None:
+                self.dbcur.execute(
+                    "INSERT INTO '%s' (name, label, org) "
+                    "VALUES(?, ?, ?)" % table, (name, label, org))
+            else:
+                self.dbcur.execute(
+                    "INSERT INTO '%s' (name, label) "
+                    "VALUES(?, ?)" % table, (name, label))
+        except sqlite3.IntegrityError as interr:
+            if interr.message == 'column label is not unique':
+                self.dbcur.execute(
+                    "SELECT name "
+                    "FROM '%s' "
+                    "WHERE label = ?" % table, (label,) )
+                exname = self.dbcur.fetchone()
+                exname = exname[0]
+
+                print "Label needs to be unique!"
+                print "Your label '%s' is already used by '%s'." % (label, exname)
+                print "Please provide a new label."
+                newid = self.addBaseType(name, table)
+            else:
+                raise interr
         else:
+            self.dbcon.commit()
+
+            newid = self.dbcur.lastrowid
+
+            # add also to dictionary
             self.dbcur.execute(
-                "INSERT INTO '%s' (name, label) "
-                "VALUES(?, ?)" % table, (name, label))
+                "INSERT INTO dictionary (word, tab_name, tab_id) "
+                "VALUES(?, ?, ?)", (name, table, newid))
 
-        self.dbcon.commit()
-
-        newid = self.dbcur.lastrowid
-
-        # add also to dictionary
-        self.dbcur.execute(
-            "INSERT INTO dictionary (word, tab_name, tab_id) "
-            "VALUES(?, ?, ?)", (name, table, newid))
-
-        self.dbcon.commit()
+            self.dbcon.commit()
 
         return newid
 
@@ -299,10 +316,23 @@ class ActivityLog(cmd.Cmd):
 
             return idtab
         elif response[0] == '3':
-            pass
             # print all table entries repeating those in the end that start
             # with the same letters and redo
+            self.dbcur.execute(
+                "SELECT name "
+                "FROM '%s'"
+                "ORDER BY name ASC" % table )
+            namelist = self.dbcur.fetchall()
+            namelist = list( itertools.chain.from_iterable(namelist) )
 
+            for na in range(len(namelist)-1):
+                if namelist[na][0].lower() == namelist[na+1][0].lower():
+                    sys.stdout.write(namelist[na] + ', ')
+                else:
+                    sys.stdout.write(namelist[na] + '\n')
+            sys.stdout.write(namelist[-1] + '\n')
+
+            return self.resolveUnknownName(name, (table,))
         else:
             return self.getIDfromDict(response.strip(), table)
 
@@ -449,7 +479,7 @@ class ActivityLog(cmd.Cmd):
                     # get the default activity for this project
                     act = self.getDefaultActivity(projects[0])
                 else:
-                    # raise an error
+                    # raise an error, if two project names are given
                     raise RuntimeError
             else:
                 act = actpj
