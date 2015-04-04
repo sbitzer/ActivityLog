@@ -1,3 +1,4 @@
 *.mat
 *.sqlite
 *.csv
+*.pyc
