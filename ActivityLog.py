@@ -73,8 +73,8 @@ class ActivityLog(cmd.Cmd):
 
     # this separates the three parts of a job string:
     # activity[ with people][ for project|org|person]
-    act_re = re.compile('([\w ]+?)(?: with ([\w ,]+?))?(?:$| (?:fro|for|about) ([\w ,]+))')
-    time_re = re.compile('([\w ,]+)?(?:@(\d+):(\d+)(?::(\d+))?)?')
+    act_re = re.compile('([\w\- ]+?)(?: with ([\w\- ,]+?))?(?:$| (?:fro|for|about) ([\w\- ,]+))')
+    time_re = re.compile('([\w\- ,]+)?(?:@(\d+):(\d+)(?::(\d+))?)?')
 
     # (id of last row in jobs, start timestamp in that row)
     lastjob = (None, None)
@@ -204,7 +204,7 @@ class ActivityLog(cmd.Cmd):
 
         self.dbcon.commit()
 
-        writeTestEntries(self)
+#        writeTestEntries(self)
 
 
     def addBaseType(self, name, table):
@@ -226,7 +226,7 @@ class ActivityLog(cmd.Cmd):
                 label = name
                 org = None
             else:
-                match = re.match('\s*(\w*)\s*(?:&\s*(\w*)\s*)?', response)
+                match = re.match('([\w\- ]*)(?:&([\w\- ]*))?', response)
                 if match == None:
                     print("DID NOT RECOGNISE FORMAT!\n"
                           "Make sure you follow the instructions below!\n"
@@ -238,19 +238,19 @@ class ActivityLog(cmd.Cmd):
                     if match.group(1) == None:
                         label = name
                     else:
-                        label = match.group(1)
+                        label = match.group(1).strip()
 
                     if match.group(2) == None:
                         org = None
                     else:
-                        org = self.getIDfromDict(match.group(2), 'organisations')
+                        org = self.getIDfromDict(match.group(2).strip(), 'organisations')
 
         # may FAIL because label not unique!
         try:
             if (table == 'people' or table == 'projects') and not org == None:
                 self.dbcur.execute(
                     "INSERT INTO '%s' (name, label, org) "
-                    "VALUES(?, ?, ?)" % table, (name, label, org))
+                    "VALUES(?, ?, ?)" % table, (name, label, org[0]))
             else:
                 self.dbcur.execute(
                     "INSERT INTO '%s' (name, label) "
@@ -384,7 +384,7 @@ class ActivityLog(cmd.Cmd):
         pjids = []
         orgids = []
         for ppo in ppolist:
-            forid, fortab = self.getIDfromDict(ppo, ('projects', 'people',
+            forid, fortab = self.getIDfromDict(ppo.strip(), ('projects', 'people',
                                                      'organisations'))
 
             if fortab == 'projects':
@@ -468,19 +468,18 @@ class ActivityLog(cmd.Cmd):
             else:
                 person = []
 
-            actpj, tab = self.getIDfromDict(match.group(1), ('activities',
+            actpj, tab = self.getIDfromDict(match.group(1).strip(), ('activities',
                                             'projects'))
 
             # if a project name was used in place of an activity
             if tab == 'projects':
+                # get the default activity for this project
+                act = self.getDefaultActivity(actpj)
+
                 if projects == None:
                     projects = [actpj]
-
-                    # get the default activity for this project
-                    act = self.getDefaultActivity(projects[0])
                 else:
-                    # raise an error, if two project names are given
-                    raise RuntimeError
+                    projects.append(actpj)
             else:
                 act = actpj
 
@@ -677,7 +676,45 @@ class ActivityLog(cmd.Cmd):
 
     # delete or overwrite previous jobs
     def do_del(self, instr):
-        pass
+        # if the instance has just been created, lastjob = [None, None]
+        if self.lastjob[0] == None:
+            # find the newest job in DB and use this as lastjob
+            now = dt.datetime.now()
+            oneweek = dt.timedelta(days = 7)
+            self.dbcur.execute("SELECT id, start FROM jobs WHERE start < ? "
+                "AND start > ? ORDER BY start DESC", (now, now-oneweek))
+            self.lastjob = self.dbcur.fetchone()
+
+        if self.lastjob == None:
+            print 'No previous job within last week! Continuing without delete.'
+        else:
+            # get start time of job previous to lastjob
+            self.dbcur.execute("SELECT id, start FROM jobs WHERE id < ? "
+                "ORDER BY start DESC", (self.lastjob[0],))
+            prevjob = self.dbcur.fetchone()
+
+            # delete all things connected to last job in job_p, job_pj, job_org
+            self.dbcur.execute(
+                "DELETE FROM job_p "
+                "WHERE job = ?", (self.lastjob[0],))
+            self.dbcur.execute(
+                "DELETE FROM job_pj "
+                "WHERE job = ?", (self.lastjob[0],))
+            self.dbcur.execute(
+                "DELETE FROM job_org "
+                "WHERE job = ?", (self.lastjob[0],))
+            # delete job last to prevent DB IntegrityError
+            self.dbcur.execute(
+                "DELETE FROM jobs "
+                "WHERE id = ?", (self.lastjob[0],))
+            self.dbcon.commit()
+
+            # set self.lastjob to point to previous to last id and its start time
+            self.lastjob = prevjob
+
+            # call self.default(instr), if instr is not empty
+            if len(instr) > 0:
+                self.default(instr)
 
 
     # close session
