@@ -25,7 +25,7 @@ def convMatlabdate2Datetime(matdate):
 
 
 if __name__ == "__main__":
-    alog = ActivityLog('test.sqlite')
+    alog = ActivityLog('sebsalog.sqlite')
 
     # endt may change when faulty input is corrected during computation of durations
     endt_ischanged = False
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         print "---------------------"
 
     # loop over entries in the csv file
-    with open('activitylog_test.csv', 'rb') as alogfile:
+    with open('activitylog_tmp.csv', 'rb') as alogfile:
         reader = csv.reader(alogfile, delimiter=';', skipinitialspace=True)
         count = 0
         for row in reader:
