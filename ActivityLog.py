@@ -2,7 +2,7 @@
 """
 Created on Wed Aug 20 19:07:49 2014
 
-@author: Sebastian Bitzer
+@author: Sebastian Bitzer (official@sbitzer.eu)
 """
 
 import sqlite3
@@ -725,8 +725,8 @@ class ActivityLog(cmd.Cmd):
 
 
 if __name__ == "__main__":
-    alog = ActivityLog('test.sqlite')
+    alog = ActivityLog('sebsalog.sqlite')
     alog.cmdloop()
 
-#    if alog.dbcon != None:
-#        alog.dbcon.close()
+    if alog.dbcon != None:
+        alog.dbcon.close()
