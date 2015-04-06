@@ -716,10 +716,28 @@ class ActivityLog(cmd.Cmd):
             if len(instr) > 0:
                 self.default(instr)
 
+    # print working hours
+    def do_hours(self, instr):
+        # working hours for today
+        today = dt.datetime.today()
+        today = dt.datetime(today.year, today.month, today.day)
+        self.dbcur.execute(
+            "SELECT SUM(duration) FROM jobs "
+            "WHERE start >= ? AND NOT activity IN ("
+                "SELECT id FROM activities "
+                "WHERE name IN ('lunch')"
+            ")", (today, ))
+        hours = self.dbcur.fetchone()[0] / 60 / 60
+
+        print "today:     %5.2f hours" % hours
+        print "this week: XX.XX hours"
+
 
     # close session
     def do_feierabend(self, instr):
         indt, jobstr = self.getTime(instr)
+
+        self.do_hours('')
 
         return True
 
@@ -728,5 +746,5 @@ if __name__ == "__main__":
     alog = ActivityLog('sebsalog.sqlite')
     alog.cmdloop()
 
-    if alog.dbcon != None:
-        alog.dbcon.close()
+#    if alog.dbcon != None:
+#        alog.dbcon.close()
