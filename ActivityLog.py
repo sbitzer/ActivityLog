@@ -774,9 +774,11 @@ class ActivityLog(cmd.Cmd):
                 "SELECT id FROM activities "
                 "WHERE name IN ('lunch')"
             ")", (today, ))
-        hours = self.dbcur.fetchone()[0] / 60 / 60
+        hours = self.dbcur.fetchone()[0]
         if hours == None:
             hours = 0
+        else:
+            hours = hours / 60 / 60
 
         # working hours for this week
         self.dbcur.execute(
@@ -785,9 +787,11 @@ class ActivityLog(cmd.Cmd):
                 "SELECT id FROM activities "
                 "WHERE name IN ('lunch')"
             ")", (today - dt.timedelta(today.weekday()), ))
-        weekhours = self.dbcur.fetchone()[0] / 60 / 60
+        weekhours = self.dbcur.fetchone()[0]
         if weekhours == None:
             weekhours = 0
+        else:
+            weekhours = weekhours / 60 / 60
 
         print "today:     %5.2f hours" % hours
         print "this week: %5.2f hours" % weekhours
