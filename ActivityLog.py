@@ -718,9 +718,10 @@ class ActivityLog(cmd.Cmd):
 
     # print working hours
     def do_hours(self, instr):
-        # working hours for today
         today = dt.datetime.today()
         today = dt.datetime(today.year, today.month, today.day)
+
+        # working hours for today
         self.dbcur.execute(
             "SELECT SUM(duration) FROM jobs "
             "WHERE start >= ? AND NOT activity IN ("
@@ -728,9 +729,22 @@ class ActivityLog(cmd.Cmd):
                 "WHERE name IN ('lunch')"
             ")", (today, ))
         hours = self.dbcur.fetchone()[0] / 60 / 60
+        if hours == None:
+            hours = 0
+
+        # working hours for this week
+        self.dbcur.execute(
+            "SELECT SUM(duration) FROM jobs "
+            "WHERE start >= ? AND NOT activity IN ("
+                "SELECT id FROM activities "
+                "WHERE name IN ('lunch')"
+            ")", (today - dt.timedelta(today.weekday()), ))
+        weekhours = self.dbcur.fetchone()[0] / 60 / 60
+        if weekhours == None:
+            weekhours = 0
 
         print "today:     %5.2f hours" % hours
-        print "this week: XX.XX hours"
+        print "this week: %5.2f hours" % weekhours
 
 
     # close session
