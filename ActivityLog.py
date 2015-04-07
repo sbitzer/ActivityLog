@@ -87,6 +87,9 @@ class ActivityLog(cmd.Cmd):
             self.dbcon = sqlite3.connect(dbname, detect_types=sqlite3.PARSE_DECLTYPES)
             self.dbcur = self.dbcon.cursor()
             self.dbcur.execute("PRAGMA foreign_keys = ON")
+
+            self.init_lastjob()
+            self.checkLastDuration()
         elif dbstate == 0:
             raise IOError(77, 'The file name points to a file that does not appear to be an SQLite3 database', dbname)
         else:
@@ -103,6 +106,17 @@ class ActivityLog(cmd.Cmd):
 
     def __del__(self):
         self.dbcon.close()
+
+
+    def init_lastjob(self):
+        """find the newest job in DB and use this as lastjob"""
+        now = dt.datetime.now()
+        self.dbcur.execute("SELECT id, start FROM jobs "
+            "WHERE start < ? ORDER BY start DESC", (now, ))
+        self.lastjob = self.dbcur.fetchone()
+
+        if self.lastjob == None:
+            self.lastjob = (None, None)
 
 
     def initDB(self):
@@ -619,6 +633,47 @@ class ActivityLog(cmd.Cmd):
         return enddt
 
 
+    def checkLastDuration(self):
+        if self.lastjob[0] != None:
+            self.dbcur.execute(
+                "SELECT duration FROM jobs "
+                "WHERE id = ?", (self.lastjob[0],))
+            dur = self.dbcur.fetchone()
+
+            if dur[0] == None:
+                enddt = dt.datetime.now()
+
+                while True:
+                    response = raw_input("Last job has no duration.\n"
+                        "Use now as end time (just press enter), \n"
+                        "provide end time as '@hours:mins' as usual (today's date is used), \n"
+                        "or check start time (type 'start'):\n")
+
+                    if response == '':
+                        break
+                    elif response.strip().lower() == 'start':
+                        print "start of last job: %s\n" % self.lastjob[1]
+                    else:
+                        # extract time
+                        match = self.time_re.match(response)
+
+                        # invalid format
+                        if ( match == None or match.group(2) == None or
+                            match.group(3) == None ):
+                            print "Given input has invalid format!\n"
+                        else:
+                            hours = int(match.group(2))
+                            mins = int(match.group(3))
+                            if hours < 0 or hours >= 24 or mins < 0 or mins >= 60:
+                                print "Given time is invalid!\n"
+                            else:
+                                enddt = dt.datetime.combine(enddt.date(),
+                                                            dt.time(hours, mins))
+                                break
+
+                self.addDurationToJob(enddt)
+
+
     def processJob(self, datetime, jobstr):
         act, people, projects, orgs = self.parseJobStr(jobstr)
 
@@ -676,17 +731,8 @@ class ActivityLog(cmd.Cmd):
 
     # delete or overwrite previous jobs
     def do_del(self, instr):
-        # if the instance has just been created, lastjob = [None, None]
-        if self.lastjob[0] == None:
-            # find the newest job in DB and use this as lastjob
-            now = dt.datetime.now()
-            oneweek = dt.timedelta(days = 7)
-            self.dbcur.execute("SELECT id, start FROM jobs WHERE start < ? "
-                "AND start > ? ORDER BY start DESC", (now, now-oneweek))
-            self.lastjob = self.dbcur.fetchone()
-
         if self.lastjob == None:
-            print 'No previous job within last week! Continuing without delete.'
+            print 'No previous job in database! Continuing without delete.'
         else:
             # get start time of job previous to lastjob
             self.dbcur.execute("SELECT id, start FROM jobs WHERE id < ? "
@@ -719,7 +765,7 @@ class ActivityLog(cmd.Cmd):
     # print working hours
     def do_hours(self, instr):
         today = dt.datetime.today()
-        today = dt.datetime(today.year, today.month, today.day)
+        today = today.date()
 
         # working hours for today
         self.dbcur.execute(
@@ -757,7 +803,7 @@ class ActivityLog(cmd.Cmd):
 
 
 if __name__ == "__main__":
-    alog = ActivityLog('sebsalog.sqlite')
+    alog = ActivityLog('test.sqlite')
     alog.cmdloop()
 
 #    if alog.dbcon != None:
