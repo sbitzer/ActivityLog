@@ -76,8 +76,8 @@ class ActivityLog(cmd.Cmd):
     act_re = re.compile('([\w\- ]+?)(?: with ([\w\- ,]+?))?(?:$| (?:fro|for|about) ([\w\- ,]+))')
     time_re = re.compile('([\w\- ,]+)?(?:@(\d+):(\d+)(?::(\d+))?)?')
 
-    # (id of last row in jobs, start timestamp in that row)
-    lastjob = (None, None)
+    # [id of last row in jobs, its start timestamp, its duration]
+    lastjob = [None, None, None]
 
     def __init__(self, dbname):
         cmd.Cmd.__init__(self)
@@ -111,12 +111,14 @@ class ActivityLog(cmd.Cmd):
     def init_lastjob(self):
         """find the newest job in DB and use this as lastjob"""
         now = dt.datetime.now()
-        self.dbcur.execute("SELECT id, start FROM jobs "
+        self.dbcur.execute("SELECT id, start, duration FROM jobs "
             "WHERE start < ? ORDER BY start DESC", (now, ))
         self.lastjob = self.dbcur.fetchone()
 
         if self.lastjob == None:
-            self.lastjob = (None, None)
+            self.lastjob = [None, None, None]
+        else:
+            self.lastjob = list(self.lastjob)
 
 
     def initDB(self):
@@ -545,115 +547,43 @@ class ActivityLog(cmd.Cmd):
     def addDurationToJob(self, enddt):
 
         if self.lastjob[0] != None:
-            duration = (enddt - self.lastjob[1]).total_seconds()
+            if self.lastjob[2] == None:
+                duration = (enddt - self.lastjob[1]).total_seconds()
 
-            # everything is fine
-            if duration >= 0:
-                self.dbcur.execute(
-                    "UPDATE jobs SET duration=? WHERE id=?", (duration,
-                                                              self.lastjob[0]))
+                # everything is fine
+                if duration >= 0:
+                    self.dbcur.execute(
+                        "UPDATE jobs SET duration=? WHERE id=?", (duration,
+                                                                  self.lastjob[0]))
 
-                self.dbcon.commit()
+                    self.dbcon.commit()
+                    self.lastjob[2] = duration
 
-            # resolve impossible negative duration by asking user
-            else:
-                validtime = False
+                # resolve impossible negative duration by asking user
+                else:
+                    validtime = False
 
-                # get start time of job previous to lastjob
-                self.dbcur.execute("SELECT id, start FROM jobs WHERE id < ? "
-                    "ORDER BY start DESC", (self.lastjob[0],))
-                oldjob = self.dbcur.fetchone()
+                    # get start time of job previous to lastjob
+                    self.dbcur.execute("SELECT id, start FROM jobs WHERE id < ? "
+                        "ORDER BY start DESC", (self.lastjob[0],))
+                    oldjob = self.dbcur.fetchone()
 
-                while not validtime:
-                    response = raw_input("Negative duration! Fix (or type help): ")
+                    while not validtime:
+                        response = raw_input("Negative duration! Fix (or type help): ")
 
-                    # help needed
-                    if response.strip().lower() == "help":
-                        response = raw_input("From the given times the last job has a negative\n"
-                        "duration. This cannot be. Please provide a new time.\n"
-                        "To provide a new time for the new input just give the\n"
-                        "time with an @. To provide a new time for the last input\n"
-                        "prepend the time with the word 'last'! Note that, if you\n"
-                        "choose to change the last input, the new time must be \n"
-                        "between %02d:%02d and %02d:%02d. Syntax examples:\n"
-                        "last @12:34\n"
-                        "@14:49\n" % (oldjob[1].hour, oldjob[1].minute,
-                                      enddt.hour, enddt.minute))
+                        # help needed
+                        if response.strip().lower() == "help":
+                            response = raw_input("From the given times the last job has a negative\n"
+                            "duration. This cannot be. Please provide a new time.\n"
+                            "To provide a new time for the new input just give the\n"
+                            "time with an @. To provide a new time for the last input\n"
+                            "prepend the time with the word 'last'! Note that, if you\n"
+                            "choose to change the last input, the new time must be \n"
+                            "between %02d:%02d and %02d:%02d. Syntax examples:\n"
+                            "last @12:34\n"
+                            "@14:49\n" % (oldjob[1].hour, oldjob[1].minute,
+                                          enddt.hour, enddt.minute))
 
-                    # extract time
-                    match = self.time_re.match(response)
-
-                    # invalid format
-                    if ( match == None or match.group(2) == None or
-                        match.group(3) == None ):
-                        print "Given input has invalid format!\n"
-                    else:
-                        hours = int(match.group(2))
-                        mins = int(match.group(3))
-                        if hours < 0 or hours >= 24 or mins < 0 or mins >= 60:
-                            print "Given time is invalid!\n"
-                            continue
-
-                        # time only: change enddt
-                        if match.group(1) == None:
-                            enddt = dt.datetime.combine(enddt.date(),
-                                                        dt.time(hours, mins))
-                            if enddt > self.lastjob[1]:
-                                validtime = True
-                                self.addDurationToJob(enddt)
-                            else:
-                                print "New time is still before start of last job!\n"
-
-                        # last: change time of lastjob
-                        elif match.group(1).strip() == 'last':
-                            # is new time between oldstart and enddt?
-                            newdt = dt.datetime.combine(self.lastjob[1].date(),
-                                                        dt.time(hours, mins))
-                            if oldjob[1] < newdt and newdt < enddt:
-                                validtime = True
-
-                                # update lastjob start in DB and self.lastjob
-                                self.lastjob = (self.lastjob[0], newdt)
-                                self.dbcur.execute("UPDATE jobs SET start=? WHERE id=?",
-                                                   (newdt, self.lastjob[0]))
-
-                                # update duration of job with oldid in DB
-                                duration = (newdt - oldjob[1]).total_seconds()
-                                self.dbcur.execute("UPDATE jobs SET duration=? "
-                                    "WHERE id=?", (duration, oldjob[0]))
-
-                                self.dbcon.commit()
-
-                                self.addDurationToJob(enddt)
-                            else:
-                                print "New time is not between %02d:%02d and %02d:%02d!\n" % (
-                                    oldjob[1].hour, oldjob[1].minute,
-                                    enddt.hour, enddt.minute)
-
-        return enddt
-
-
-    def checkLastDuration(self):
-        if self.lastjob[0] != None:
-            self.dbcur.execute(
-                "SELECT duration FROM jobs "
-                "WHERE id = ?", (self.lastjob[0],))
-            dur = self.dbcur.fetchone()
-
-            if dur[0] == None:
-                enddt = dt.datetime.now()
-
-                while True:
-                    response = raw_input("Last job has no duration.\n"
-                        "Use now as end time (just press enter), \n"
-                        "provide end time as '@hours:mins' as usual (today's date is used), \n"
-                        "or check start time (type 'start'):\n")
-
-                    if response == '':
-                        break
-                    elif response.strip().lower() == 'start':
-                        print "start of last job: %s\n" % self.lastjob[1]
-                    else:
                         # extract time
                         match = self.time_re.match(response)
 
@@ -666,12 +596,144 @@ class ActivityLog(cmd.Cmd):
                             mins = int(match.group(3))
                             if hours < 0 or hours >= 24 or mins < 0 or mins >= 60:
                                 print "Given time is invalid!\n"
-                            else:
+                                continue
+
+                            # time only: change enddt
+                            if match.group(1) == None:
                                 enddt = dt.datetime.combine(enddt.date(),
                                                             dt.time(hours, mins))
-                                break
+                                if enddt > self.lastjob[1]:
+                                    validtime = True
+                                    self.addDurationToJob(enddt)
+                                else:
+                                    print "New time is still before start of last job!\n"
 
-                self.addDurationToJob(enddt)
+                            # last: change time of lastjob
+                            elif match.group(1).strip() == 'last':
+                                # is new time between oldstart and enddt?
+                                newdt = dt.datetime.combine(self.lastjob[1].date(),
+                                                            dt.time(hours, mins))
+                                if oldjob[1] < newdt and newdt < enddt:
+                                    validtime = True
+
+                                    # update lastjob start in DB and self.lastjob
+                                    self.lastjob[1] = newdt
+                                    self.dbcur.execute("UPDATE jobs SET start=? WHERE id=?",
+                                                       (newdt, self.lastjob[0]))
+
+                                    # update duration of job with oldid in DB
+                                    duration = (newdt - oldjob[1]).total_seconds()
+                                    self.dbcur.execute("UPDATE jobs SET duration=? "
+                                        "WHERE id=?", (duration, oldjob[0]))
+
+                                    self.dbcon.commit()
+
+                                    self.addDurationToJob(enddt)
+                                else:
+                                    print "New time is not between %02d:%02d and %02d:%02d!\n" % (
+                                        oldjob[1].hour, oldjob[1].minute,
+                                        enddt.hour, enddt.minute)
+            else:
+                oldenddt = self.lastjob[1] + dt.timedelta(seconds = self.lastjob[2])
+                if oldenddt > enddt:
+                    validtime = False
+                    while not validtime:
+                        response = raw_input("Start time of new job is before\n"
+                            "end time of last job. Fix (or type help):")
+
+                        # help needed
+                        if response.strip().lower() == "help":
+                            response = raw_input("From the given times the new job starts\n"
+                            "before the last job ends. This cannot be.\n"
+                            "Please provide a new time.\n"
+                            "To provide a new start time of the new job just give the\n"
+                            "time with an @. To provide a new end time for the last job\n"
+                            "prepend the time with the word 'last'! Note that, if you\n"
+                            "choose to change the last job, the new time must be \n"
+                            "between %02d:%02d and %02d:%02d. Syntax examples:\n"
+                            "last @12:34\n"
+                            "@14:49\n" % (self.lastjob[1].hour, self.lastjob[1].minute,
+                                          enddt.hour, enddt.minute))
+
+                        # extract time
+                        match = self.time_re.match(response)
+
+                        # invalid format
+                        if ( match == None or match.group(2) == None or
+                            match.group(3) == None ):
+                            print "Given input has invalid format!\n"
+                        else:
+                            hours = int(match.group(2))
+                            mins = int(match.group(3))
+                            if hours < 0 or hours >= 24 or mins < 0 or mins >= 60:
+                                print "Given time is invalid!\n"
+                                continue
+
+                            # time only: change enddt
+                            if match.group(1) == None:
+                                enddt = dt.datetime.combine(enddt.date(),
+                                                            dt.time(hours, mins))
+                                if enddt >= oldenddt:
+                                    validtime = True
+                                else:
+                                    print "New start time is still before end time of last job!\n"
+
+                            # last: change time of lastjob
+                            elif match.group(1).strip() == 'last':
+                                # is new end time of last job between oldstart and enddt?
+                                newenddt = dt.datetime.combine(self.lastjob[1].date(),
+                                                            dt.time(hours, mins))
+                                if self.lastjob[1] < newenddt and newenddt < enddt:
+                                    validtime = True
+
+                                    duration = (newenddt - self.lastjob[1]).total_seconds()
+
+                                    self.lastjob[2] = duration
+                                    self.dbcur.execute("UPDATE jobs SET duration=? "
+                                        "WHERE id=?", (duration, self.lastjob[0]))
+
+                                    self.dbcon.commit()
+                                else:
+                                    print "New end time of last job is not between %02d:%02d and %02d:%02d!\n" % (
+                                        self.lastjob[1].hour, self.lastjob[1].minute,
+                                        enddt.hour, enddt.minute)
+
+        return enddt
+
+
+    def checkLastDuration(self):
+        if self.lastjob[0] != None and self.lastjob[2] == None:
+            enddt = dt.datetime.now()
+
+            while True:
+                response = raw_input("Last job has no duration.\n"
+                    "Use now as end time (just press enter), \n"
+                    "provide end time as '@hours:mins' as usual (today's date is used), \n"
+                    "or check start time (type 'start'):\n")
+
+                if response == '':
+                    break
+                elif response.strip().lower() == 'start':
+                    print "start of last job: %s\n" % self.lastjob[1]
+                else:
+                    # extract time
+                    match = self.time_re.match(response)
+
+                    # invalid format
+                    if ( match == None or match.group(2) == None or
+                        match.group(3) == None ):
+                        print "Given input has invalid format!\n"
+                    else:
+                        hours = int(match.group(2))
+                        mins = int(match.group(3))
+                        if hours < 0 or hours >= 24 or mins < 0 or mins >= 60:
+                            print "Given time is invalid!\n"
+                        else:
+                            enddt = dt.datetime.combine(enddt.date(),
+                                                        dt.time(hours, mins))
+                            break
+
+            self.addDurationToJob(enddt)
 
 
     def processJob(self, datetime, jobstr):
@@ -685,28 +747,28 @@ class ActivityLog(cmd.Cmd):
     def getTime(self, instr):
         indt = dt.datetime.today()
 
-        if len(instr) == 0:
+        match = self.time_re.match(instr)
+        if match.group(1) == None:
             jobstr = None
         else:
-            match = self.time_re.match(instr)
             jobstr = match.group(1).strip()
 
-            if match.group(2) != None:
-                if match.group(4) == None:
-                    secs = 0
-                else:
-                    secs = int(match.group(4))
+        if match.group(2) != None:
+            if match.group(4) == None:
+                secs = 0
+            else:
+                secs = int(match.group(4))
 
-                # check whether time is valid
-                hours = int(match.group(2))
-                mins = int(match.group(3))
+            # check whether time is valid
+            hours = int(match.group(2))
+            mins = int(match.group(3))
 
-                if (hours >= 0 and hours < 24 and mins >= 0 and mins < 60 and
-                    secs >= 0 and secs < 60):
-                    indt = dt.datetime.combine(dt.date.today(),
-                                               dt.time(hours, mins, secs))
-                else:
-                    print "invalid time: taking current time instead\n"
+            if (hours >= 0 and hours < 24 and mins >= 0 and mins < 60 and
+                secs >= 0 and secs < 60):
+                indt = dt.datetime.combine(dt.date.today(),
+                                           dt.time(hours, mins, secs))
+            else:
+                print "invalid time: taking current time instead\n"
 
         indt = self.addDurationToJob(indt)
 
@@ -724,20 +786,20 @@ class ActivityLog(cmd.Cmd):
 
         # process job
         lastid = self.processJob(indt, jobstr)
-        self.lastjob = (lastid, indt)
+        self.lastjob = [lastid, indt, None]
 
         print indt.strftime('%H:%M')
 
 
     # delete or overwrite previous jobs
     def do_del(self, instr):
-        if self.lastjob == None:
+        if self.lastjob[0] == None:
             print 'No previous job in database! Continuing without delete.'
         else:
             # get start time of job previous to lastjob
-            self.dbcur.execute("SELECT id, start FROM jobs WHERE id < ? "
+            self.dbcur.execute("SELECT id, start, duration FROM jobs WHERE id < ? "
                 "ORDER BY start DESC", (self.lastjob[0],))
-            prevjob = self.dbcur.fetchone()
+            prevjob = list(self.dbcur.fetchone())
 
             # delete all things connected to last job in job_p, job_pj, job_org
             self.dbcur.execute(
@@ -755,7 +817,7 @@ class ActivityLog(cmd.Cmd):
                 "WHERE id = ?", (self.lastjob[0],))
             self.dbcon.commit()
 
-            # set self.lastjob to point to previous to last id and its start time
+            # set self.lastjob to point to previous to last job
             self.lastjob = prevjob
 
             # call self.default(instr), if instr is not empty
