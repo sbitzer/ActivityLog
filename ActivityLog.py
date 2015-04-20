@@ -222,6 +222,38 @@ class ActivityLog(cmd.Cmd):
 
 #        writeTestEntries(self)
 
+    # print a job from the DB
+    def printJob(self, jobid):
+        if jobid == None:
+            print "No job to print."
+        else:
+            # get info from DB
+            self.dbcur.execute(
+                "SELECT activity, start, duration FROM jobs "
+                "WHERE id = ?", (jobid,))
+            job = self.dbcur.fetchone()
+            if job == None:
+                print "Job requested to print does not exist."
+            else:
+                startstr = job[1].strftime('%Y-%m-%d %H:%M')
+                if job[2] == None:
+                    endstr = 'running ...'
+                else:
+                    endstr = (job[1] + dt.timedelta(seconds = job[2])).strftime('%Y-%m-%d %H:%M')
+                    endstr = endstr + " (~%d min)" % (job[2] / 60)
+            
+                # get name of activity from DB
+                self.dbcur.execute(
+                    "SELECT name FROM activities "
+                    "WHERE id = ?", (job[0],))
+                jobstr = self.dbcur.fetchone()
+                if jobstr == None:
+                    jobstr = "Did not find name of activity with id %d" % job[0]
+                else:
+                    jobstr = jobstr[0]
+                
+                print startstr + " -> " + endstr + ": " + jobstr
+            
 
     def addBaseType(self, name, table):
         corrinput = False
@@ -829,13 +861,19 @@ class ActivityLog(cmd.Cmd):
         today = dt.datetime.today()
         today = today.date()
 
-        # working hours for today
+        # working hours for today:
+        # sum the duration of jobs, but exclude lunches and breaks > 10min
         self.dbcur.execute(
             "SELECT SUM(duration) FROM jobs "
-            "WHERE start >= ? AND NOT activity IN ("
+            "WHERE start >= ? "
+            "AND NOT activity IN ("
                 "SELECT id FROM activities "
-                "WHERE name IN ('lunch')"
-            ")", (today, ))
+                "WHERE name IN ('lunch') )"
+            "AND NOT ( "
+                "activity IN ("
+                    "SELECT id FROM activities "
+                    "WHERE name IN ('break') )"
+                "AND duration > 600 )", (today, ))
         hours = self.dbcur.fetchone()[0]
         if hours == None:
             hours = 0
@@ -845,10 +883,15 @@ class ActivityLog(cmd.Cmd):
         # working hours for this week
         self.dbcur.execute(
             "SELECT SUM(duration) FROM jobs "
-            "WHERE start >= ? AND NOT activity IN ("
+            "WHERE start >= ? "
+            "AND NOT activity IN ("
                 "SELECT id FROM activities "
-                "WHERE name IN ('lunch')"
-            ")", (today - dt.timedelta(today.weekday()), ))
+                "WHERE name IN ('lunch') )"
+            "AND NOT ( "
+                "activity IN ("
+                    "SELECT id FROM activities "
+                    "WHERE name IN ('break') )"
+                "AND duration > 600 )", (today - dt.timedelta(today.weekday()), ))
         weekhours = self.dbcur.fetchone()[0]
         if weekhours == None:
             weekhours = 0
@@ -857,6 +900,11 @@ class ActivityLog(cmd.Cmd):
 
         print "today:     %5.2f hours" % hours
         print "this week: %5.2f hours" % weekhours
+
+
+    # print last job
+    def do_last(self, instr):
+        self.printJob(self.lastjob[0])
 
 
     # close session
