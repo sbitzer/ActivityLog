@@ -79,6 +79,8 @@ class ActivityLog(cmd.Cmd):
     # [id of last row in jobs, its start timestamp, its duration]
     lastjob = [None, None, None]
 
+    dbname = None
+
     def __init__(self, dbname):
         cmd.Cmd.__init__(self)
 
@@ -102,6 +104,8 @@ class ActivityLog(cmd.Cmd):
                 self.initDB()
             else:
                 self.dbcon = None
+
+        self.dbname = dbname
 
 
     def __del__(self):
@@ -241,7 +245,7 @@ class ActivityLog(cmd.Cmd):
                 else:
                     endstr = (job[1] + dt.timedelta(seconds = job[2])).strftime('%Y-%m-%d %H:%M')
                     endstr = endstr + " (~%d min)" % (job[2] / 60)
-            
+
                 # get name of activity from DB
                 self.dbcur.execute(
                     "SELECT name FROM activities "
@@ -251,9 +255,9 @@ class ActivityLog(cmd.Cmd):
                     jobstr = "Did not find name of activity with id %d" % job[0]
                 else:
                     jobstr = jobstr[0]
-                
+
                 print startstr + " -> " + endstr + ": " + jobstr
-            
+
 
     def addBaseType(self, name, table):
         corrinput = False
