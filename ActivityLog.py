@@ -739,18 +739,22 @@ class ActivityLog(cmd.Cmd):
 
     def checkLastDuration(self):
         if self.lastjob[0] != None and self.lastjob[2] == None:
+            addenddt = True
+
             enddt = dt.datetime.now()
 
             while True:
                 response = raw_input("Last job has no duration.\n"
-                    "Use now as end time (just press enter), \n"
-                    "provide end time as '@hours:mins' as usual (today's date is used), \n"
-                    "or check start time (type 'start'):\n")
+                    "continue last job (just press enter), \n"
+                    "register follow-up job as usual (type job string), \n"
+                    "provide end time as '@hours:mins' (today's date is used), \n"
+                    "or check information about last job (type 'last'):\n")
 
                 if response == '':
+                    addenddt = False
                     break
-                elif response.strip().lower() == 'start':
-                    print "start of last job: %s\n" % self.lastjob[1]
+                elif response.strip().lower() == 'last':
+                    self.printJob(self.lastjob[0])
                 else:
                     # extract time
                     match = self.time_re.match(response)
@@ -759,7 +763,7 @@ class ActivityLog(cmd.Cmd):
                     if ( match == None or match.group(2) == None or
                         match.group(3) == None ):
                         print "Given input has invalid format!\n"
-                    else:
+                    elif match.group(1) == None:
                         hours = int(match.group(2))
                         mins = int(match.group(3))
                         if hours < 0 or hours >= 24 or mins < 0 or mins >= 60:
@@ -768,8 +772,13 @@ class ActivityLog(cmd.Cmd):
                             enddt = dt.datetime.combine(enddt.date(),
                                                         dt.time(hours, mins))
                             break
+                    else:
+                        addenddt = False
+                        self.default(response)
+                        break
 
-            self.addDurationToJob(enddt)
+            if addenddt:
+                self.addDurationToJob(enddt)
 
 
     def processJob(self, datetime, jobstr):
