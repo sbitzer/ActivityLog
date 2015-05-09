@@ -842,8 +842,9 @@ class ActivityLog(cmd.Cmd):
             print 'No previous job in database! Continuing without delete.'
         else:
             # get start time of job previous to lastjob
-            self.dbcur.execute("SELECT id, start, duration FROM jobs WHERE id < ? "
-                "ORDER BY start DESC", (self.lastjob[0],))
+            self.dbcur.execute("SELECT id, start, duration FROM jobs "
+                "WHERE start < ? "
+                "ORDER BY start DESC", (self.lastjob[1],))
             prevjob = list(self.dbcur.fetchone())
 
             # delete all things connected to last job in job_p, job_pj, job_org
@@ -860,6 +861,16 @@ class ActivityLog(cmd.Cmd):
             self.dbcur.execute(
                 "DELETE FROM jobs "
                 "WHERE id = ?", (self.lastjob[0],))
+            # finally ask user whether user also wants to delete duration of
+            # previous to lastjob
+            response = raw_input("Also update duration of the job before the "
+                "deleted one?\n"
+                "(just press enter for yes, type anything else for no): ")
+            if response == '':
+                prevjob[2] = None
+                self.dbcur.execute(
+                    "UPDATE jobs SET duration=Null WHERE id=?", (prevjob[0],))
+
             self.dbcon.commit()
 
             # set self.lastjob to point to previous to last job
@@ -868,6 +879,7 @@ class ActivityLog(cmd.Cmd):
             # call self.default(instr), if instr is not empty
             if len(instr) > 0:
                 self.default(instr)
+
 
     # print working hours
     def do_hours(self, instr):
