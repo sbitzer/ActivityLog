@@ -371,18 +371,13 @@ class ActivityLog(cmd.Cmd):
             # print all table entries repeating those in the end that start
             # with the same letters and redo
             self.dbcur.execute(
-                "SELECT name "
+                "SELECT name, label "
                 "FROM '%s'"
                 "ORDER BY name ASC" % table )
             namelist = self.dbcur.fetchall()
-            namelist = list( itertools.chain.from_iterable(namelist) )
 
-            for na in range(len(namelist)-1):
-                if namelist[na][0].lower() == namelist[na+1][0].lower():
-                    sys.stdout.write(namelist[na] + ', ')
-                else:
-                    sys.stdout.write(namelist[na] + '\n')
-            sys.stdout.write(namelist[-1] + '\n')
+            for (dbname, dblabel) in namelist:
+                print '%15s: %s' % (dblabel, dbname)
 
             return self.resolveUnknownName(name, (table,))
         else:
@@ -820,20 +815,23 @@ class ActivityLog(cmd.Cmd):
         return indt, jobstr
 
 
-    # pre-loop for greetings and check for last job without duration
+    # pre-loop for greetings / print hours for this day/week
     def preloop(self):
-        pass
+        self.do_hours('')
 
 
     # handling of standard activity input
     def default(self, instr):
         indt, jobstr = self.getTime(instr)
 
-        # process job
-        lastid = self.processJob(indt, jobstr)
-        self.lastjob = [lastid, indt, None]
+        if jobstr is None:
+            print "Did not recognize command or valid job string, skipping!"
+        else:
+            # process job
+            lastid = self.processJob(indt, jobstr)
+            self.lastjob = [lastid, indt, None]
 
-        print indt.strftime('%H:%M')
+            print indt.strftime('%H:%M')
 
 
     # delete or overwrite previous jobs
