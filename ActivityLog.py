@@ -282,7 +282,7 @@ class ActivityLog(cmd.Cmd):
                 if match == None:
                     print("DID NOT RECOGNISE FORMAT!\n"
                           "Make sure you follow the instructions below!\n"
-                          "Only use alpha-numeric names without spaces on either side of the &!\n\n")
+                          "Only use alpha-numeric names (can have spaces) on either side of the &!\n\n")
                     continue
                 else:
                     corrinput = True
@@ -327,10 +327,15 @@ class ActivityLog(cmd.Cmd):
 
             newid = self.dbcur.lastrowid
 
-            # add also to dictionary
+            # add name also to dictionary
             self.dbcur.execute(
                 "INSERT INTO dictionary (word, tab_name, tab_id) "
                 "VALUES(?, ?, ?)", (name, table, newid))
+
+            # add label also to dictionary
+            self.dbcur.execute(
+                "INSERT INTO dictionary (word, tab_name, tab_id) "
+                "VALUES(?, ?, ?)", (label, table, newid))
 
             self.dbcon.commit()
 
