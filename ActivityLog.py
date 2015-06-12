@@ -633,7 +633,7 @@ class ActivityLog(cmd.Cmd):
                             if match.group(1) == None:
                                 enddt = dt.datetime.combine(enddt.date(),
                                                             dt.time(hours, mins))
-                                if enddt > self.lastjob[1]:
+                                if enddt >= self.lastjob[1]:
                                     validtime = True
                                     self.addDurationToJob(enddt)
                                 else:
@@ -644,7 +644,7 @@ class ActivityLog(cmd.Cmd):
                                 # is new time between oldstart and enddt?
                                 newdt = dt.datetime.combine(self.lastjob[1].date(),
                                                             dt.time(hours, mins))
-                                if oldjob[1] < newdt and newdt < enddt:
+                                if oldjob[1] <= newdt and newdt <= enddt:
                                     validtime = True
 
                                     # update lastjob start in DB and self.lastjob
@@ -714,7 +714,7 @@ class ActivityLog(cmd.Cmd):
                                 # is new end time of last job between oldstart and enddt?
                                 newenddt = dt.datetime.combine(self.lastjob[1].date(),
                                                             dt.time(hours, mins))
-                                if self.lastjob[1] < newenddt and newenddt < enddt:
+                                if self.lastjob[1] <= newenddt and newenddt <= enddt:
                                     validtime = True
 
                                     duration = (newenddt - self.lastjob[1]).total_seconds()
