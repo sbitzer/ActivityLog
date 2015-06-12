@@ -841,6 +841,16 @@ class ActivityLog(cmd.Cmd):
 
     # delete or overwrite previous jobs
     def do_del(self, instr):
+        """Delete or replace the last recorded job in the database.
+
+            To delete just type "del" without arguments.
+            To replace provide a new job string after the "del" command,
+            separated by space. This is the same as first just deleting
+            and then giving a new job string.
+
+            Examples: "del", "del reading for some project @11:56"
+        """
+
         if self.lastjob[0] == None:
             print 'No previous job in database! Continuing without delete.'
         else:
@@ -886,6 +896,28 @@ class ActivityLog(cmd.Cmd):
 
     # print working hours
     def do_hours(self, instr):
+        """Prints working hours for today and this week, without long breaks.
+
+            Long breaks are defined as "lunch" activities and any "break"s
+            that are longer than 10 minutes by default.
+
+            If you want to use a different long break cutoff, just provide it
+            in minutes after the "hours" command.
+
+            Examples: "hours", "hours 5", "hours 8.6"
+        """
+        if instr == '':
+            longbreaklimit = 600.0
+        else:
+            try:
+                longbreaklimit = float(instr)
+            except ValueError:
+                print "The 'time' you provided was not a number."
+                print "Taking 10 instead."
+                longbreaklimit = 10
+            else:
+                longbreaklimit = longbreaklimit * 60
+
         today = dt.datetime.today()
         today = today.date()
 
@@ -901,7 +933,7 @@ class ActivityLog(cmd.Cmd):
                 "activity IN ("
                     "SELECT id FROM activities "
                     "WHERE name IN ('break') )"
-                "AND duration > 600 )", (today, ))
+                "AND duration > ? )", (today, longbreaklimit))
         hours = self.dbcur.fetchone()[0]
         if hours == None:
             hours = 0
@@ -919,7 +951,8 @@ class ActivityLog(cmd.Cmd):
                 "activity IN ("
                     "SELECT id FROM activities "
                     "WHERE name IN ('break') )"
-                "AND duration > 600 )", (today - dt.timedelta(today.weekday()), ))
+                "AND duration > ? )", (today - dt.timedelta(today.weekday()),
+                    longbreaklimit))
         weekhours = self.dbcur.fetchone()[0]
         if weekhours == None:
             weekhours = 0
@@ -932,16 +965,39 @@ class ActivityLog(cmd.Cmd):
 
     # print last job
     def do_last(self, instr):
+        """Print information about last recorded job in database.
+
+            Prints: start time -> end time (duration): activity
+
+            Example: "last"
+        """
         self.printJob(self.lastjob[0])
 
 
     # close session
     def do_feierabend(self, instr):
+        """Close activitylog.
+
+            Records duration of currently running job, prints resulting
+            working hours and then closes the activity log.
+
+            Examples: "feierabend", "exit", "q"
+        """
         indt, jobstr = self.getTime(instr)
 
         self.do_hours('')
 
         return True
+
+
+    def do_exit(self, instr):
+        """Alias for "feierabend"."""
+        self.do_feierabend(instr)
+
+
+    def do_q(self, instr):
+        """Alias for "feierabend"."""
+        self.do_feierabend(instr)
 
 
 if __name__ == "__main__":
