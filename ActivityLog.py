@@ -11,7 +11,6 @@ import itertools
 import datetime as dt
 import cmd
 import random
-import sys
 
 
 def isSQLite3(filename):
@@ -994,10 +993,14 @@ class ActivityLog(cmd.Cmd):
         """Alias for "feierabend"."""
         self.do_feierabend(instr)
 
+        return True
+
 
     def do_q(self, instr):
         """Alias for "feierabend"."""
         self.do_feierabend(instr)
+
+        return True
 
 
 if __name__ == "__main__":
