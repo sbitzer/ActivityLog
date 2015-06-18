@@ -372,16 +372,7 @@ class ActivityLog(cmd.Cmd):
 
             return idtab
         elif response[0] == '3':
-            # print all table entries repeating those in the end that start
-            # with the same letters and redo
-            self.dbcur.execute(
-                "SELECT name, label "
-                "FROM '%s'"
-                "ORDER BY name ASC" % table )
-            namelist = self.dbcur.fetchall()
-
-            for (dbname, dblabel) in namelist:
-                print '%15s: %s' % (dblabel, dbname)
+            self.do_list(table)
 
             return self.resolveUnknownName(name, (table,))
         else:
@@ -971,6 +962,29 @@ class ActivityLog(cmd.Cmd):
             Example: "last"
         """
         self.printJob(self.lastjob[0])
+        
+    
+    def do_list(self, instr):
+        """List database entries for the desired table.
+        
+            Table may be one of: activities, projects, people, organisations
+            
+            Example: "list projects"
+        """
+        table = instr.strip()
+        if table in ('activities', 'projects', 'people', 'organisations'):
+            self.dbcur.execute(
+                "SELECT name, label "
+                "FROM '%s'"
+                "ORDER BY name ASC" % table )
+            namelist = self.dbcur.fetchall()
+
+            for (dbname, dblabel) in namelist:
+                print '%15s: %s' % (dblabel, dbname)
+        else:
+            print "'%s' is not a valid table name!\n" \
+                "Please choose one of: activities, projects, people, organisations" \
+                % (table, )
 
 
     # close session
