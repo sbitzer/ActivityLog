@@ -80,6 +80,15 @@ class ActivityLog(cmd.Cmd):
 
     dbname = None
 
+    # whether users have to confirm close with ENTER after program stopped
+    # this allows users to see statements printed just before closing the
+    # program when the program runs in a shell that automatically closes with
+    # the program, only effective when program is called within a with-statement
+    userclose = True
+
+    tab_singulars = {'people': 'person', 'organisations': 'organisation',
+                     'projects': 'project', 'activities': 'activity'}
+
     def __init__(self, dbname):
         cmd.Cmd.__init__(self)
 
@@ -105,6 +114,24 @@ class ActivityLog(cmd.Cmd):
                 self.dbcon = None
 
         self.dbname = dbname
+
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exctype, value, tb):
+        if exctype is not None:
+            print('\nAn unexpected error occurred:\n')
+            import traceback
+            traceback.print_exception(exctype, value, tb)
+
+        if self.userclose:
+            raw_input('Press enter to close ...')
+
+        # this is probably not needed
+        self.__del__()
+
+        return True
 
 
     def __del__(self):
@@ -291,52 +318,50 @@ class ActivityLog(cmd.Cmd):
                     else:
                         label = match.group(1).strip()
 
+                        # check whether label exists already in the dictionary
+                        self.dbcur.execute(
+                            "SELECT tab_id, tab_name "
+                            "FROM dictionary "
+                            "WHERE word = ?", (label,))
+                        result = self.dbcur.fetchone()
+                        if result is not None:
+                            corrinput = False
+                            print("Label needs to be unique!\n" +
+                                  "Your label '%s' is already used as a %s.\n"
+                                  % (label, self.tab_singulars[result[1]]) +
+                                  "Please repeat with a new label.")
+                            continue
+
                     if match.group(2) == None:
                         org = None
                     else:
                         org = self.getIDfromDict(match.group(2).strip(), 'organisations')
 
-        # may FAIL because label not unique!
-        try:
-            if (table == 'people' or table == 'projects') and not org == None:
-                self.dbcur.execute(
-                    "INSERT INTO '%s' (name, label, org) "
-                    "VALUES(?, ?, ?)" % table, (name, label, org[0]))
-            else:
-                self.dbcur.execute(
-                    "INSERT INTO '%s' (name, label) "
-                    "VALUES(?, ?)" % table, (name, label))
-        except sqlite3.IntegrityError as interr:
-            if interr.message == 'column label is not unique':
-                self.dbcur.execute(
-                    "SELECT name "
-                    "FROM '%s' "
-                    "WHERE label = ?" % table, (label,) )
-                exname = self.dbcur.fetchone()
-                exname = exname[0]
-
-                print "Label needs to be unique!"
-                print "Your label '%s' is already used by '%s'." % (label, exname)
-                print "Please provide a new label."
-                newid = self.addBaseType(name, table)
-            else:
-                raise interr
-        else:
-            self.dbcon.commit()
-
-            newid = self.dbcur.lastrowid
-
-            # add name also to dictionary
+        if (table == 'people' or table == 'projects') and not org == None:
             self.dbcur.execute(
-                "INSERT INTO dictionary (word, tab_name, tab_id) "
-                "VALUES(?, ?, ?)", (name, table, newid))
+                "INSERT INTO '%s' (name, label, org) "
+                "VALUES(?, ?, ?)" % table, (name, label, org[0]))
+        else:
+            self.dbcur.execute(
+                "INSERT INTO '%s' (name, label) "
+                "VALUES(?, ?)" % table, (name, label))
+        self.dbcon.commit()
 
-            # add label also to dictionary
+        newid = self.dbcur.lastrowid
+
+        # add name to dictionary
+        self.dbcur.execute(
+            "INSERT INTO dictionary (word, tab_name, tab_id) "
+            "VALUES(?, ?, ?)", (name, table, newid))
+
+        # if name and label differ
+        if name != label:
+            # add label to dictionary
             self.dbcur.execute(
                 "INSERT INTO dictionary (word, tab_name, tab_id) "
                 "VALUES(?, ?, ?)", (label, table, newid))
 
-            self.dbcon.commit()
+        self.dbcon.commit()
 
         return newid
 
@@ -962,13 +987,13 @@ class ActivityLog(cmd.Cmd):
             Example: "last"
         """
         self.printJob(self.lastjob[0])
-        
-    
+
+
     def do_list(self, instr):
         """List database entries for the desired table.
-        
+
             Table may be one of: activities, projects, people, organisations
-            
+
             Example: "list projects"
         """
         table = instr.strip()
