@@ -3,3 +3,5 @@
 *.csv
 *.pyc
 ActivityLog.egg-info
+build
+dist

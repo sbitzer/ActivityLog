@@ -14,7 +14,6 @@ setup(
     author_email='official@sbitzer.eu',
     packages=['ActivityLog'],
     description='An activity logger.',
-    install_requires=['NumPy >=1.7.0', 'matplotlib'],
     classifiers=[
                 'Development Status :: 3 - Alpha',
                 'Environment :: Console',
