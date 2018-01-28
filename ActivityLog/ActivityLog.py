@@ -75,22 +75,20 @@ class ActivityLog(cmd.Cmd):
     act_re = re.compile('([\w\- ]+?)(?: with ([\w\- ,]+?))?(?:$| (?:fro|for|about) ([\w\- ,]+))')
     time_re = re.compile('([\w\- ,]+)?(?:@(\d+):(\d+)(?::(\d+))?)?')
 
-    # [id of last row in jobs, its start timestamp, its duration]
-    lastjob = [None, None, None]
-
-    dbname = None
-
-    # whether users have to confirm close with ENTER after program stopped
-    # this allows users to see statements printed just before closing the
-    # program when the program runs in a shell that automatically closes with
-    # the program, only effective when program is called within a with-statement
-    userclose = True
-
     tab_singulars = {'people': 'person', 'organisations': 'organisation',
                      'projects': 'project', 'activities': 'activity'}
 
     def __init__(self, dbname):
         cmd.Cmd.__init__(self)
+
+        # [id of last row in jobs, its start timestamp, its duration]
+        self.lastjob = [None, None, None]
+
+        # whether users have to confirm close with ENTER after program stopped
+        # this allows users to see statements printed just before closing the
+        # program when the program runs in a shell that automatically closes with
+        # the program, only effective when program is called within a with-statement
+        self.userclose = True
 
         dbstate = isSQLite3(dbname)
         if dbstate == 1:
