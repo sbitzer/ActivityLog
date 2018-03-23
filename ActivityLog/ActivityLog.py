@@ -11,7 +11,7 @@ import itertools
 import datetime as dt
 import cmd
 import random
-
+from .ALogAnalysis import ALogAnalysis
 
 def isSQLite3(filename):
     from os.path import isfile, getsize
@@ -112,6 +112,8 @@ class ActivityLog(cmd.Cmd):
                 self.dbcon = None
 
         self.dbname = dbname
+
+        self.alana = ALogAnalysis(self)
 
 
     def __enter__(self):
@@ -920,57 +922,19 @@ class ActivityLog(cmd.Cmd):
             Examples: "hours", "hours 5", "hours 8.6"
         """
         if instr == '':
-            longbreaklimit = 600.0
+            longbreaklimit = 10.0
         else:
             try:
                 longbreaklimit = float(instr)
             except ValueError:
                 print "The 'time' you provided was not a number."
                 print "Taking 10 instead."
-                longbreaklimit = 10
-            else:
-                longbreaklimit = longbreaklimit * 60
+                longbreaklimit = 10.0
 
-        today = dt.datetime.today()
-        today = today.date()
-
-        # working hours for today:
-        # sum the duration of jobs, but exclude lunches and breaks > 10min
-        self.dbcur.execute(
-            "SELECT SUM(duration) FROM jobs "
-            "WHERE start >= ? "
-            "AND NOT activity IN ("
-                "SELECT id FROM activities "
-                "WHERE name IN ('lunch') )"
-            "AND NOT ( "
-                "activity IN ("
-                    "SELECT id FROM activities "
-                    "WHERE name IN ('break') )"
-                "AND duration > ? )", (today, longbreaklimit))
-        hours = self.dbcur.fetchone()[0]
-        if hours == None:
-            hours = 0
-        else:
-            hours = hours / 60 / 60
-
-        # working hours for this week
-        self.dbcur.execute(
-            "SELECT SUM(duration) FROM jobs "
-            "WHERE start >= ? "
-            "AND NOT activity IN ("
-                "SELECT id FROM activities "
-                "WHERE name IN ('lunch') )"
-            "AND NOT ( "
-                "activity IN ("
-                    "SELECT id FROM activities "
-                    "WHERE name IN ('break') )"
-                "AND duration > ? )", (today - dt.timedelta(today.weekday()),
-                    longbreaklimit))
-        weekhours = self.dbcur.fetchone()[0]
-        if weekhours == None:
-            weekhours = 0
-        else:
-            weekhours = weekhours / 60 / 60
+        hours = self.alana.sum_durations(
+                'day', longbreaklimit=longbreaklimit) / 60.
+        weekhours = self.alana.sum_durations(
+                'week', longbreaklimit=longbreaklimit) / 60.
 
         print "today:     %5.2f hours" % hours
         print "this week: %5.2f hours" % weekhours
